@@ -40,4 +40,5 @@ endif()
 
 include(AICxxSubmodules)
 
+add_subdirectory(enchantum)
 add_subdirectory(src)
