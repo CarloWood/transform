@@ -38,7 +38,7 @@ class Size;
 template<CoordinateSystem CS>
 class TranslationVector;
 
-template<CoordinateSystem to_CS, CoordinateSystem from_CS, bool inverted = false>
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted = false>
 class Transform
 {
   static constexpr CoordinateSystem convert_to = inverted ? from_CS : to_CS;
@@ -56,18 +56,18 @@ class Transform
   Transform& translate(TranslationVector<convert_to> const& tv);
   Transform& scale(qreal s);
 
-  Point<convert_to> operator*(Point<convert_from> const& point) const;
-  Size<convert_to> operator*(Size<convert_from> const& size) const;
+  friend Point<convert_to> operator*(Point<convert_from> const& point, Transform const& transform);
+  friend Size<convert_to> operator*(Size<convert_from> const& size, Transform const& transform);
 
-  Transform<to_CS, from_CS, !inverted> const& inverse() const
+  Transform<from_CS, to_CS, !inverted> const& inverse() const
   {
-    return reinterpret_cast<Transform<to_CS, from_CS, !inverted> const&>(*this);
+    return reinterpret_cast<Transform<from_CS, to_CS, !inverted> const&>(*this);
   }
 
   void print_on(std::ostream& os) const
   {
     std::ostringstream prefix;
-    prefix << utils::to_string(to_CS) << "_transform_" << utils::to_string(from_CS) << ":";
+    prefix << utils::to_string(from_CS) << "_transform_" << utils::to_string(to_CS) << ":";
     int const prefix_len = std::max((int)prefix.str().length(), 24);
 
     os << '\n' << std::setw(prefix_len) << " " <<
@@ -140,59 +140,61 @@ class TranslationVector
   }
 };
 
-template<CoordinateSystem to_CS, CoordinateSystem from_CS, bool inverted>
-Transform<to_CS, from_CS, inverted>& Transform<to_CS, from_CS, inverted>::translate(TranslationVector<convert_to> const& tv)
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Transform<from_CS, to_CS, inverted>& Transform<from_CS, to_CS, inverted>::translate(TranslationVector<convert_to> const& tv)
 {
   m_.translate(tv.x(), tv.y());
   return *this;
 }
 
-template<CoordinateSystem to_CS, CoordinateSystem from_CS, bool inverted>
-Transform<to_CS, from_CS, inverted>& Transform<to_CS, from_CS, inverted>::scale(qreal s)
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Transform<from_CS, to_CS, inverted>& Transform<from_CS, to_CS, inverted>::scale(qreal s)
 {
   m_.scale(s, s);
   return *this;
 }
 
-template<CoordinateSystem to_CS, CoordinateSystem from_CS, bool inverted>
-Point<Transform<to_CS, from_CS, inverted>::convert_to> Transform<to_CS, from_CS, inverted>::operator*(Point<convert_from> const& point) const
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Point<Transform<from_CS, to_CS, inverted>::convert_to> operator*(
+    Point<Transform<from_CS, to_CS, inverted>::convert_from> const& point, Transform<from_CS, to_CS, inverted> const& transform)
 {
   QPointF p{point.x(), point.y()};
   QPointF result;
   if constexpr (!inverted)
-    result = m_.map(p);
+    result = transform.m_.map(p);
   else
-    result = m_.inverted().map(p);
+    result = transform.m_.inverted().map(p);
   return {result.x(), result.y()};
 }
 
-template<CoordinateSystem to_CS, CoordinateSystem from_CS, bool inverted>
-Size<Transform<to_CS, from_CS, inverted>::convert_to> Transform<to_CS, from_CS, inverted>::operator*(Size<convert_from> const& size) const
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Size<Transform<from_CS, to_CS, inverted>::convert_to> operator*(
+    Size<Transform<from_CS, to_CS, inverted>::convert_from> const& size, Transform<from_CS, to_CS, inverted> const& transform)
 {
   // Just scale.
   if constexpr (!inverted)
-    return {size.width() * m_.m11(), size.height() * m_.m22()};
+    return {size.width() * transform.m_.m11(), size.height() * transform.m_.m22()};
   else
-    return {size.width() / m_.m11(), size.height() / m_.m22()};
+    return {size.width() / transform.m_.m11(), size.height() / transform.m_.m22()};
 }
 
 Size<pixels> half_window_size(0.5 * window_width, 0.5 * window_height);
-Transform<pixels, centered> const pixels_transform_centered = Transform<pixels, centered>{}.translate(half_window_size).scale(half_window_size.height());
+Transform<centered, pixels> const centered_transform_pixels = Transform<centered, pixels>{}.translate(half_window_size).scale(half_window_size.height());
 
 struct RectangleToWindow
 {
-  Point<pixels> centered_topleft_;
-  Size<pixels> centered_size_;
+  Point<pixels> topleft_centered_;
+  Size<pixels> size_centered_;
 
-  RectangleToWindow(Point<centered> const& centered_topleft, Size<centered> const& centered_size) :
-    centered_topleft_(pixels_transform_centered * centered_topleft),
-    centered_size_(pixels_transform_centered * centered_size)
+  RectangleToWindow(Point<centered> const& topleft_centered, Size<centered> const& size_centered) :
+    topleft_centered_(topleft_centered * centered_transform_pixels),
+    size_centered_(size_centered * centered_transform_pixels)
   {
-    DoutEntering(dc::notice, "RectangleToWindow(" << centered_topleft << ", " << centered_size << ")");
-    Dout(dc::notice, "centered_topleft_ = " << centered_topleft_);
-    Dout(dc::notice, "centered_size_ = " << centered_size_);
+    DoutEntering(dc::notice, "RectangleToWindow(" << topleft_centered << ", " << size_centered << ")");
+    Dout(dc::notice, "topleft_centered_ = " << topleft_centered_);
+    Dout(dc::notice, "size_centered_ = " << size_centered_);
 
-    Dout(dc::notice, "Where " << centered_topleft_ << " = " << centered_topleft << " * " << pixels_transform_centered);
+    Dout(dc::notice, "Where " << topleft_centered << " = " << topleft_centered << " * " << centered_transform_pixels);
     Dout(dc::notice, "The translation should have been " << half_window_size);
   }
 };
@@ -200,9 +202,9 @@ struct RectangleToWindow
 class Rectangle : public RectangleToWindow, public cairowindow::Rectangle
 {
  public:
-  Rectangle(Point<centered> const& centered_topleft, Size<centered> const& centered_size) :
-    RectangleToWindow(centered_topleft, centered_size),
-    cairowindow::Rectangle(centered_topleft_.x(), centered_topleft_.y(), centered_size_.width(), centered_size_.height())
+  Rectangle(Point<centered> const& topleft_centered, Size<centered> const& size_centered) :
+    RectangleToWindow(topleft_centered, size_centered),
+    cairowindow::Rectangle(topleft_centered_.x(), topleft_centered_.y(), size_centered_.width(), size_centered_.height())
   {
   }
 };
@@ -243,26 +245,26 @@ int main()
     //=========================================================================
     // Start of actual program.
 
-    Size<pixels> const pixels_ObjectSize{object_width, object_height};
-    Size<centered> const centered_ObjectSize = pixels_transform_centered.inverse() * pixels_ObjectSize;
-    Dout(dc::notice, "centered_ObjectSize = " << centered_ObjectSize);
+    Size<pixels> const ObjectSize_pixels{object_width, object_height};
+    Size<centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
+    Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
-    Point<draw> draw_DrawOrigin;
-    auto centered_Transform_draw = Transform<centered, draw>{}.translate(-0.5 * TranslationVector{centered_ObjectSize});
-    Dout(dc::notice, "centered_Transform_draw = " << centered_Transform_draw);
+    Point<draw> DrawOrigin_draw;
+    auto draw_transform_centered = Transform<draw, centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered});
+    Dout(dc::notice, "draw_transform_centered = " << draw_transform_centered);
 
-    Point<centered> centered_DrawOrigin = centered_Transform_draw * draw_DrawOrigin;
-    Dout(dc::notice, "centered_DrawOrigin = " << centered_DrawOrigin);
+    Point<centered> DrawOrigin_centered = DrawOrigin_draw * draw_transform_centered;
+    Dout(dc::notice, "DrawOrigin_centered = " << DrawOrigin_centered);
 
     // Display the draw-coordinate-system.
-    display_coordinate_system(layer, pixels_transform_draw);
+//    display_coordinate_system(layer, draw_transform_pixels);
 
     // Draw a line.
 //    auto blue_line = std::make_shared<Line>(350, 250, 100, 100, LineStyle({.line_color = color::blue, .line_width = 1.0}));
 //    layer->draw(blue_line);
 
-    // Display the object of centered_ObjectSize (centered-coordinate-system) with the top-left in the origin of the draw-coordinate-system (DrawOrigin).
-    auto object1 = std::make_shared<Shape>(Rectangle{centered_DrawOrigin, centered_ObjectSize}, ShapeStyleParams{.line_color = color::black, .shape = cwdraw::rectangle});
+    // Display the object of ObjectSize_centered (centered-coordinate-system) with the top-left in the origin of the draw-coordinate-system (DrawOrigin).
+    auto object1 = std::make_shared<Shape>(Rectangle{DrawOrigin_centered, ObjectSize_centered}, ShapeStyleParams{.line_color = color::black, .shape = cwdraw::rectangle});
     layer->draw(object1);
 
     // End
