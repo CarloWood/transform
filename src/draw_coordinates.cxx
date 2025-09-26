@@ -41,6 +41,7 @@ class TranslationVector;
 template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted = false>
 class Transform
 {
+ public:
   static constexpr CoordinateSystem convert_to = inverted ? from_CS : to_CS;
   static constexpr CoordinateSystem convert_from = inverted ? to_CS : from_CS;
 
@@ -56,13 +57,13 @@ class Transform
   Transform& translate(TranslationVector<convert_to> const& tv);
   Transform& scale(qreal s);
 
-  friend Point<convert_to> operator*(Point<convert_from> const& point, Transform const& transform);
-  friend Size<convert_to> operator*(Size<convert_from> const& size, Transform const& transform);
-
   Transform<from_CS, to_CS, !inverted> const& inverse() const
   {
     return reinterpret_cast<Transform<from_CS, to_CS, !inverted> const&>(*this);
   }
+
+  Point<Transform<from_CS, to_CS, inverted>::convert_to> multiply_from_the_right_with(Point<convert_from> const& point) const;
+  Size<Transform<from_CS, to_CS, inverted>::convert_to> multiply_from_the_right_with(Size<convert_from> const& size) const;
 
   void print_on(std::ostream& os) const
   {
@@ -155,27 +156,39 @@ Transform<from_CS, to_CS, inverted>& Transform<from_CS, to_CS, inverted>::scale(
 }
 
 template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
-Point<Transform<from_CS, to_CS, inverted>::convert_to> operator*(
-    Point<Transform<from_CS, to_CS, inverted>::convert_from> const& point, Transform<from_CS, to_CS, inverted> const& transform)
+Point<Transform<from_CS, to_CS, inverted>::convert_to> Transform<from_CS, to_CS, inverted>::multiply_from_the_right_with(Point<convert_from> const& point) const
 {
   QPointF p{point.x(), point.y()};
   QPointF result;
   if constexpr (!inverted)
-    result = transform.m_.map(p);
+    result = m_.map(p);
   else
-    result = transform.m_.inverted().map(p);
+    result = m_.inverted().map(p);
   return {result.x(), result.y()};
+}
+
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Point<Transform<from_CS, to_CS, inverted>::convert_to> operator*(
+    Point<Transform<from_CS, to_CS, inverted>::convert_from> const& point, Transform<from_CS, to_CS, inverted> const& transform)
+{
+  return transform.multiply_from_the_right_with(point);
+}
+
+template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
+Size<Transform<from_CS, to_CS, inverted>::convert_to> Transform<from_CS, to_CS, inverted>::multiply_from_the_right_with(Size<convert_from> const& size) const
+{
+  // Just scale.
+  if constexpr (!inverted)
+    return {size.width() * m_.m11(), size.height() * m_.m22()};
+  else
+    return {size.width() / m_.m11(), size.height() / m_.m22()};
 }
 
 template<CoordinateSystem from_CS, CoordinateSystem to_CS, bool inverted>
 Size<Transform<from_CS, to_CS, inverted>::convert_to> operator*(
     Size<Transform<from_CS, to_CS, inverted>::convert_from> const& size, Transform<from_CS, to_CS, inverted> const& transform)
 {
-  // Just scale.
-  if constexpr (!inverted)
-    return {size.width() * transform.m_.m11(), size.height() * transform.m_.m22()};
-  else
-    return {size.width() / transform.m_.m11(), size.height() / transform.m_.m22()};
+  return transform.multiply_from_the_right_with(size);
 }
 
 Size<pixels> half_window_size(0.5 * window_width, 0.5 * window_height);
