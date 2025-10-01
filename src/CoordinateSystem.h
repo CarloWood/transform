@@ -4,8 +4,9 @@
 #include "Point.h"
 #include "Line.h"
 #include "Rectangle.h"
+#include "Range.h"
 #include "cairowindow/draw/Point.h"
-#include "cairowindow/draw/PlotArea.h"
+#include "cairowindow/draw/PlotArea.h"          // number_of_axis, calculate_range_ticks
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Rectangle.h"
 #include "cairowindow/draw/Text.h"
@@ -150,12 +151,13 @@ class CoordinateSystem
 
 /*  std::shared_ptr<Text> xlabel_;
   std::shared_ptr<Text> ylabel_;*/
-  std::array<cairowindow::Range, number_of_axes> range_;
-  std::array<int, number_of_axes> range_ticks_{{10, 10}};
+  std::array<Range<cs>, number_of_axes> range_;
+  std::array<int, number_of_axes> range_ticks_{{0, 0}};                 // The number of tick marks on the visible segment of the respective axis.
+                                                                        // Zero means: not visible.
 /*  std::array<std::vector<std::shared_ptr<Text>>, number_of_axes> labels_;*/
 
  public:
-  CoordinateSystem(Transform<cs, CS::pixels> reference_transform, LineStyle axis_style);
+  CoordinateSystem(Transform<cs, CS::pixels> const reference_transform, LineStyle axis_style);
 
 #if 0
   CoordinateSystem(PlotAreaStyle plot_area_style,
@@ -167,12 +169,12 @@ class CoordinateSystem
         plot_area_.geometry().offset_y() + 0.5 * plot_area_.geometry().height(), ylabel_style)) { }
 #endif
 
-  void set_range(int axis, cairowindow::Range range)
+  void set_range(int axis, Range<cs> range)
   {
-    DoutEntering(dc::cairowindow, "CoordinateSystem::set_range(" << axis << ", " << range << ") [" << this << "]");
+    DoutEntering(dc::notice, "CoordinateSystem::set_range(" << axis << ", " << range << ") [" << this << "]");
     range_[axis] = range;
     range_ticks_[axis] = PlotArea::calculate_range_ticks(range_[axis]);
-    Dout(dc::cairowindow, "range_[" << axis << "] = " << range_[axis] << "; range_ticks_[" << axis << "] = " << range_ticks_[axis]);
+    Dout(dc::notice, "range_[" << axis << "] = " << range_[axis] << "; range_ticks_[" << axis << "] = " << range_ticks_[axis]);
   }
 
   cairowindow::Point clamp_to_plot_area(cairowindow::Point const& point) const
@@ -438,13 +440,9 @@ class CoordinateSystem
 };
 
 template<CS cs>
-CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> cs_transform_pixels, LineStyle axis_style) :
+CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, LineStyle axis_style) :
   reference_transform_(cs_transform_pixels), axis_style_{axis_style}
 {
-  // Set range_ to be just the window size (in pixel coordinates).
-  set_range(x_axis, {0, window_width});
-  set_range(y_axis, {0, window_height});
-
   // Calculate where the cs-axis intersect with the window geometry.
 
   // Construct three points on the CS axis.
@@ -459,28 +457,46 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> cs_transform_pi
   csAxisDirection_[x_axis] = Direction(csOrigin_pixels_, csXAxisUnit_pixels);
   csAxisDirection_[y_axis] = Direction(csOrigin_pixels_, csYAxisUnit_pixels);
 
+  // The inverse transform.
+  auto const& pixels_transform_cs = cs_transform_pixels.inverse();
+
   // Calcuate the length that is visible of each CS axis, in pixels.
-  std::array<double, number_of_axes> visible_length_array_pixels;
   for (int axis = x_axis; axis <= y_axis; ++axis)
   {
     double normal_x = -csAxisDirection_[axis].y();
     double normal_y = csAxisDirection_[axis].x();
     intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -csOrigin_pixels_.x() * normal_x - csOrigin_pixels_.y() * normal_y);
-    intersections::HyperBlock<double, 2> rectangle({range_[x_axis].min(), range_[y_axis].min()}, {range_[x_axis].max(), range_[y_axis].max()});
+    intersections::HyperBlock<double, 2> rectangle({0, 0}, {window_width, window_height});
     auto intersections = rectangle.intersection_points(line);
 
     // Is the line outside the window?
     if (intersections.empty())
+    {
+      math::Point const origin(0, 0);
+      line_piece_[axis] = math::LinePiece{origin, origin};      // Use twice the same point to encode that this axis is not visible within the window.
       continue;
+    }
 
-    // Get the two points where this cs-axis intersect with the window rectangle.
-    math::Point p1{intersections[0][0], intersections[0][1]};
-    math::Point p2{intersections[1][0], intersections[1][1]};
+    // Get the two points where this cs-axis intersect with the window rectangle (in pixels).
+    math::Point const p1{intersections[0][0], intersections[0][1]};
+    math::Point const p2{intersections[1][0], intersections[1][1]};
     line_piece_[axis] = math::LinePiece(p1, p2);
-    visible_length_array_pixels[axis] = line_piece_[axis].length();
+    Dout(dc::notice, "line_piece_[" << axis << "] = " << line_piece_[axis]);
+
+    // Convert the intersection points back to cs.
+    Point<cs> const p1_cs = Point<CS::pixels>(p1.x(), p1.y()) * pixels_transform_cs;
+    Point<cs> const p2_cs = Point<CS::pixels>(p2.x(), p2.y()) * pixels_transform_cs;
+    Dout(dc::notice, "p1_cs = " << p1_cs);
+    Dout(dc::notice, "p2_cs = " << p2_cs);
+    // Extract the minimum and maximum values of the visible range.
+    double min = (axis == x_axis) ? p1_cs.x() : p1_cs.y();
+    double max = (axis == x_axis) ? p2_cs.x() : p2_cs.y();
+    // We don't really know if p1 is on the left or right (above or below) p2.
+    if (min > max)
+      std::swap(min, max);
+    // Set the range on each (visible) axis.
+    set_range(axis, {min, max});
   }
-  Size<CS::pixels> visible_length_pixels(visible_length_array_pixels[x_axis], visible_length_array_pixels[y_axis]);
-  Size<cs> visible_length_cs = visible_length_pixels * cs_transform_pixels.inverse();
 }
 
 template<CS cs>
@@ -490,7 +506,9 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer) // add_to
 
   for (int axis = x_axis; axis <= y_axis; ++axis)
   {
-    // Draw axis.
+//    if (range_ticks_[axis] == 0)        // Not visible?
+//      continue;
+    // Draw the piece of the axis that is visible.
     lines_.emplace_back(std::make_shared<cairowindow::draw::Line>(
           line_piece_[axis].from().x(), line_piece_[axis].from().y(),
           line_piece_[axis].to().x(), line_piece_[axis].to().y(),

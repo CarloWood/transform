@@ -24,3 +24,11 @@ target_link_libraries(draw_coordinates
     Qt6::Widgets
     enchantum::enchantum
 )
+
+add_executable(NiceDelta_test
+  NiceDelta_test.cpp
+)
+
+target_link_libraries(NiceDelta_test
+  ${AICXX_OBJECTS_LIST}
+)

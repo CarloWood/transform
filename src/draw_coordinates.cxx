@@ -87,7 +87,7 @@ int main()
     Size<CS::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
-    auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(30.0);
+    auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(80.0);
     Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
     auto painter_transform_centered2 = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered});
