@@ -5,6 +5,8 @@
 #include "Line.h"
 #include "Rectangle.h"
 #include "Range.h"
+#include "Vector.h"
+#include "NiceDelta.h"
 #include "cairowindow/draw/Point.h"
 #include "cairowindow/draw/PlotArea.h"          // number_of_axis, calculate_range_ticks
 #include "cairowindow/draw/Line.h"
@@ -132,7 +134,7 @@ class CoordinateSystem
   using Direction = cairowindow::Direction;
 
  private:
-  Transform<cs, CS::pixels> reference_transform_;                       // The Transform defining this CoordinateSystem.
+  Transform<cs, CS::pixels> cs_transform_pixels_;                       // The Transform defining this CoordinateSystem.
   LineStyle axis_style_;                                                // The linestyle to use for the axes and tickmarks.
   Point<CS::pixels> csOrigin_pixels_;                                   // The origin in pixels.
   std::array<Direction, number_of_axes> csAxisDirection_;               // The direction of the x-axis and y-axis (in CS::pixels).
@@ -151,9 +153,9 @@ class CoordinateSystem
 
 /*  std::shared_ptr<Text> xlabel_;
   std::shared_ptr<Text> ylabel_;*/
-  std::array<Range<cs>, number_of_axes> range_;
-  std::array<int, number_of_axes> range_ticks_{{0, 0}};                 // The number of tick marks on the visible segment of the respective axis.
-                                                                        // Zero means: not visible.
+  std::array<Range<cs>, number_of_axes> range_{{{0.0, 0.0}, {0.0, 0.0}}};       // Zero means: not visible.
+  std::array<NiceDelta<cs>, number_of_axes> range_ticks_;                       // The number of tick marks on the visible segment of the respective axis.
+                                                                                // Invalid (default constructed) means: don't draw ticks.
 /*  std::array<std::vector<std::shared_ptr<Text>>, number_of_axes> labels_;*/
 
  public:
@@ -173,7 +175,7 @@ class CoordinateSystem
   {
     DoutEntering(dc::notice, "CoordinateSystem::set_range(" << axis << ", " << range << ") [" << this << "]");
     range_[axis] = range;
-    range_ticks_[axis] = PlotArea::calculate_range_ticks(range_[axis]);
+    range_ticks_[axis] = NiceDelta<cs>{range};
     Dout(dc::notice, "range_[" << axis << "] = " << range_[axis] << "; range_ticks_[" << axis << "] = " << range_ticks_[axis]);
   }
 
@@ -441,7 +443,7 @@ class CoordinateSystem
 
 template<CS cs>
 CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, LineStyle axis_style) :
-  reference_transform_(cs_transform_pixels), axis_style_{axis_style}
+  cs_transform_pixels_(cs_transform_pixels), axis_style_{axis_style}
 {
   // Calculate where the cs-axis intersect with the window geometry.
 
@@ -506,14 +508,40 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer) // add_to
 
   for (int axis = x_axis; axis <= y_axis; ++axis)
   {
-//    if (range_ticks_[axis] == 0)        // Not visible?
-//      continue;
+    // If the range is empty then min = max = 0 and size() will return zero exactly.
+    if (range_[axis].size() == 0.0)     // Not visible?
+      continue;
     // Draw the piece of the axis that is visible.
     lines_.emplace_back(std::make_shared<cairowindow::draw::Line>(
           line_piece_[axis].from().x(), line_piece_[axis].from().y(),
           line_piece_[axis].to().x(), line_piece_[axis].to().y(),
           axis_style_));
     layer->draw(lines_.back());
+
+    if (range_ticks_[axis].is_invalid())
+      continue;
+
+    // Draw the tick marks.
+    double const delta_cs = range_ticks_[axis].value();
+    int k_min = std::ceil(range_[axis].min() / delta_cs);
+    int k_max = std::floor(range_[axis].max() / delta_cs);
+    for (int k = k_min; k <= k_max; ++k)
+    {
+      if (k == 0)
+        continue;
+      double value_cs = k * delta_cs;
+      Point<cs> tick_cs{axis == x_axis ? value_cs : 0.0, axis == y_axis ? value_cs : 0.0};
+      Point<CS::pixels> tick_pixels = tick_cs * cs_transform_pixels_;
+      // Unit vector pointing into the positive direction of axis.
+      Direction axis_pixels{csOrigin_pixels_, tick_pixels};
+      Direction axis_tickmark_pixels = (axis == x_axis) == (k < 0) ? axis_pixels.normal() : axis_pixels.normal_inverse();
+      Point<CS::pixels> tick_end_pixels = tick_pixels + Vector<CS::pixels>{axis_tickmark_pixels, 5.0};
+      lines_.emplace_back(std::make_shared<cairowindow::draw::Line>(
+            tick_pixels.x(), tick_pixels.y(),
+            tick_end_pixels.x(), tick_end_pixels.y(),
+            axis_style_));
+      layer->draw(lines_.back());
+    }
   }
 }
 
