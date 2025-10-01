@@ -1,5 +1,6 @@
 #include "sys.h"
 #include "NiceDelta.h"
+#include "Range.h"
 #include <vector>
 #include <cstdint>
 #include "debug.h"
@@ -161,7 +162,7 @@ int main()
       int m_bf;
       double d_bf = bruteforce::brute_force_d(min, max, m_bf);
 
-      NiceDelta nice_delta(min, max);
+      NiceDelta nice_delta(Range<CS::pixels>{min, max});
       int m = nice_delta.m();
       double d = nice_delta.value();
 
