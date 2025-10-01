@@ -502,7 +502,7 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
 }
 
 template<CS cs>
-void CoordinateSystem<cs>::display(LayerPtr const& layer) // add_to
+void CoordinateSystem<cs>::display(LayerPtr const& layer)
 {
   namespace color = cairowindow::color;
 
