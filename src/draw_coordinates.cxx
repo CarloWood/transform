@@ -87,36 +87,36 @@ int main()
     Size<CS::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
-    auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(45.0);
-    Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
+    for (double a = 0.0; a < 360.0; a += 15.0)
+    {
+      auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(a).scale(0.000001);
+      Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
-    auto painter_transform_centered2 = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered});
-    Dout(dc::notice, "painter_transform_centered2 = " << painter_transform_centered2);
-    painter_transform_centered2.rotate(45.0);
-    Dout(dc::notice, "painter_transform_centered2 = " << painter_transform_centered2);
+      Point<CS::painter> PainterOrigin_painter;
+      Dout(dc::notice, "PainterOrigin_painter = " << PainterOrigin_painter);
 
-    Point<CS::painter> PainterOrigin_painter;
-    Dout(dc::notice, "PainterOrigin_painter = " << PainterOrigin_painter);
+      Point<CS::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
+      Dout(dc::notice, "PainterOrigin_centered = " << PainterOrigin_centered);
 
-    Point<CS::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
-    Dout(dc::notice, "PainterOrigin_centered = " << PainterOrigin_centered);
+      auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
+      Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
 
-    auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
-    Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
+      Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
+      Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
-    Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
-    Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
+      // Display the painter-coordinate-system.
+      draw::CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, LineStyle({.line_color = color::green, .line_width = 1.0}));
+      centered_coordinate_system.display(layer);
 
-    // Display the painter-coordinate-system.
-    draw::CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, LineStyle({.line_color = color::green, .line_width = 1.0}));
-    centered_coordinate_system.display(layer);
+      // Display the painter-coordinate-system.
+      draw::CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, LineStyle({.line_color = color::red, .line_width = 1.0}));
+      painter_coordinate_system.display(layer);
 
-    // Display the painter-coordinate-system.
-    draw::CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, LineStyle({.line_color = color::red, .line_width = 1.0}));
-    painter_coordinate_system.display(layer);
+      // Display the rectangle of ObjectSize_centered (centered-coordinate-system) with the top-left in the origin of the painter-coordinate-system (PainterOrigin).
+      auto object1 = draw_rectangle(layer, painter_transform_pixels, PainterOrigin_painter, ObjectSize_painter, RectangleStyle({.line_color = color::black}));
 
-    // Display the rectangle of ObjectSize_centered (centered-coordinate-system) with the top-left in the origin of the painter-coordinate-system (PainterOrigin).
-    auto object1 = draw_rectangle(layer, painter_transform_pixels, PainterOrigin_painter, ObjectSize_painter, RectangleStyle({.line_color = color::black}));
+      std::cin.get();
+    }
 
     // End
     //=========================================================================
