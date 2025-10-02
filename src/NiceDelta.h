@@ -2,8 +2,12 @@
 
 #include "Range.h"
 #include "math/subsuper_string.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
+#include <string>
 
 template<CS cs>
 class NiceDelta
@@ -104,6 +108,39 @@ class NiceDelta
   int m() const
   {
     return m_;
+  }
+
+  std::string label(int k) const
+  {
+    ASSERT(!is_invalid());
+
+    double const delta_value = value();
+    double const tick_value = k * delta_value;
+
+    if (tick_value == 0.0)
+      return "0";
+
+    if (exponent_ <= -4 || exponent_ > 4)
+    {
+      long long const scaled_integer = static_cast<long long>(k) * mantissa_values[mantissa_];
+      if (scaled_integer == 0)
+        return "0";
+      std::ostringstream oss;
+      oss << scaled_integer << 'e' << exponent_;
+      return oss.str();
+    }
+
+    std::ostringstream oss;
+    oss.setf(std::ios::fixed);
+    oss << std::setprecision(std::max(0, -exponent_)) << tick_value;
+    std::string result = oss.str();
+    if (!result.empty() && result.front() == '-')
+    {
+      auto const non_zero = std::find_if(result.begin() + 1, result.end(), [](char c) { return c != '0' && c != '.'; });
+      if (non_zero == result.end())
+        result.erase(result.begin());
+    }
+    return result;
   }
 
 #ifdef CWDEBUG

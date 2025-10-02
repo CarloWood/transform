@@ -22,6 +22,8 @@
 #include "math/Line.h"
 #include "math/Direction.h"
 #include <boost/intrusive_ptr.hpp>
+#include <cmath>
+#include <string>
 #include <vector>
 
 #if 0
@@ -139,6 +141,7 @@ class CoordinateSystem
   Point<CS::pixels> csOrigin_pixels_;                                   // The origin in pixels.
   std::array<Direction, number_of_axes> csAxisDirection_;               // The direction of the x-axis and y-axis (in CS::pixels).
   std::vector<std::shared_ptr<cairowindow::draw::Line>> lines_;         // To keep drawn lines alive.
+  std::vector<std::shared_ptr<cairowindow::draw::Text>> texts_;         // To keep drawn texts alive.
   std::array<math::LinePiece, number_of_axes> line_piece_;              // The visible part of the axes (in CS::pixels).
 
  private:
@@ -160,6 +163,11 @@ class CoordinateSystem
 
  public:
   CoordinateSystem(Transform<cs, CS::pixels> const reference_transform, LineStyle axis_style);
+
+  ~CoordinateSystem()
+  {
+    DoutEntering(dc::notice, "CoordinateSystem::~CoordinateSystem() [" << this << "]");
+  }
 
 #if 0
   CoordinateSystem(PlotAreaStyle plot_area_style,
@@ -445,6 +453,8 @@ template<CS cs>
 CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, LineStyle axis_style) :
   cs_transform_pixels_(cs_transform_pixels), axis_style_{axis_style}
 {
+  DoutEntering(dc::notice, "CoordinateSystem::CoordinateSystem(" << cs_transform_pixels << ", axis_style) [" << this << "]");
+
   // Calculate where the cs-axis intersect with the window geometry.
 
   // Construct three points on the CS axis.
@@ -504,8 +514,9 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
 template<CS cs>
 void CoordinateSystem<cs>::display(LayerPtr const& layer)
 {
-  namespace color = cairowindow::color;
+  DoutEntering(dc::notice, "CoordinateSystem<" << utils::to_string(cs) << ">::display(layer)");
 
+  ASSERT(texts_.empty());
   for (int axis = x_axis; axis <= y_axis; ++axis)
   {
     // If the range is empty then min = max = 0 and size() will return zero exactly.
@@ -525,6 +536,17 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
     double const delta_cs = range_ticks_[axis].value();
     int k_min = std::ceil(range_[axis].min() / delta_cs);
     int k_max = std::floor(range_[axis].max() / delta_cs);
+    auto const axis_direction = csAxisDirection_[axis];
+    bool const axis_prefers_parallel = std::abs(axis_direction.x()) >= std::abs(axis_direction.y());
+    auto const axis_angle = axis_direction.as_angle();
+    double const pi = std::acos(-1.0);
+    auto normalize_readable = [pi](double angle) {
+      if (angle > 0.5 * pi)
+        angle -= pi;
+      else if (angle <= -0.5 * pi)
+        angle += pi;
+      return angle;
+    };
     for (int k = k_min; k <= k_max; ++k)
     {
       if (k == 0)
@@ -541,6 +563,34 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
             tick_end_pixels.x(), tick_end_pixels.y(),
             axis_style_));
       layer->draw(lines_.back());
+
+      Point<CS::pixels> text_anchor_pixels = tick_pixels + Vector<CS::pixels>{axis_tickmark_pixels, 10.0};
+
+      std::string label = range_ticks_[axis].label(k);
+
+      double rotation = axis_angle;
+      cairowindow::draw::TextPosition position;
+      if (axis_prefers_parallel)
+        position = axis_tickmark_pixels.y() < 0 ? cairowindow::draw::centered_above : cairowindow::draw::centered_below;
+      else
+      {
+        rotation += 0.5 * pi;
+        position = axis_tickmark_pixels.x() < 0 ? cairowindow::draw::centered_left_of : cairowindow::draw::centered_right_of;
+      }
+      rotation = normalize_readable(rotation);
+
+      cairowindow::draw::TextStyle text_style({
+          .position = position,
+          .color = axis_style_.line_color(),
+          .rotation = rotation
+      });
+
+      texts_.emplace_back(std::make_shared<cairowindow::draw::Text>(
+            label,
+            text_anchor_pixels.x(),
+            text_anchor_pixels.y(),
+            text_style));
+      layer->draw(texts_.back());
     }
   }
 }
