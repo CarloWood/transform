@@ -89,7 +89,7 @@ int main()
 
     for (double a = 0.0; a < 360.0; a += 15.0)
     {
-      auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(a).scale(0.000001);
+      auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(a);
       Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
       Point<CS::painter> PainterOrigin_painter;

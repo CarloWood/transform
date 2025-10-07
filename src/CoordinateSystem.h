@@ -41,7 +41,7 @@ inline std::shared_ptr<cairowindow::draw::Line> display_line(
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
-  intersections::HyperPlane<double, 2> line_({normal_x, normal_y}, -point.x() * normal_x - point.y() * normal_y);
+  intersections::HyperPlane<double, 2> line_({normal_x, normal_y}, point.x() * normal_x + point.y() * normal_y);
   intersections::HyperBlock<double, 2> rectangle_({0, 0}, {window_width, window_height});
   auto intersections = rectangle_.intersection_points(line_);
 
@@ -449,6 +449,45 @@ class CoordinateSystem
 //  void apply_line_extend(double& x1, double& y1, double& x2, double& y2, LineExtend line_extend);
 };
 
+namespace detail {
+
+// Calculate the intersection between a line and a rectangle and return
+// the number of intersection points found and an array containing the
+// intersection points.
+//
+// The line has a direction; this direction will correspond with the
+// direction from the point returned as index 0 of the array, to the
+// point returned as index 1.
+//
+// The points are returned as a Point<cs>. The caller is responsible to
+// make sure that the rectangle uses that same coordinate system.
+template<CS cs>
+std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, intersections::HyperBlock<double, 2> rectangle_cs)
+{
+//  DoutEntering(dc::notice, "detail::intersect(" << line_cs << ", " << rectangle_cs << ")");
+
+  double normal_x = -line_cs.direction().y();
+  double normal_y = line_cs.direction().x();
+  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, line_cs.point().x() * normal_x + line_cs.point().y() * normal_y);
+  auto intersections_cs = rectangle_cs.intersection_points(line);
+
+  // Is the line outside the window?
+  if (intersections_cs.empty())
+    return {};
+
+  ASSERT(intersections_cs.size() == 2);
+
+  // Return the two points where the line_cs intersects with the rectangle_cs.
+  return {
+    2, {
+      Point<cs>(intersections_cs[0][0], intersections_cs[0][1]),
+      Point<cs>(intersections_cs[1][0], intersections_cs[1][1])
+    }
+  };
+}
+
+} // namespace detail
+
 template<CS cs>
 CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, LineStyle axis_style) :
   cs_transform_pixels_(cs_transform_pixels), axis_style_{axis_style}
@@ -475,37 +514,35 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
   // Calcuate the length that is visible of each CS axis, in pixels.
   for (int axis = x_axis; axis <= y_axis; ++axis)
   {
-    double normal_x = -csAxisDirection_[axis].y();
-    double normal_y = csAxisDirection_[axis].x();
-    intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -csOrigin_pixels_.x() * normal_x - csOrigin_pixels_.y() * normal_y);
-    intersections::HyperBlock<double, 2> rectangle({0, 0}, {window_width, window_height});
-    auto intersections = rectangle.intersection_points(line);
+    // Determine where the axis intersects with the window rectangle (everything in pixels).
+    auto [number_of_intersection_points, intersection_point_pixels] = detail::intersect<CS::pixels>(
+        {csOrigin_pixels_, csAxisDirection_[axis]},     // The axis (pointing in the direction csAxisDirection_).
+        {{0, 0}, {window_width, window_height}});       // The window rectangle.
 
     // Is the line outside the window?
-    if (intersections.empty())
+    if (number_of_intersection_points < 2)
     {
       math::Point const origin(0, 0);
       line_piece_[axis] = math::LinePiece{origin, origin};      // Use twice the same point to encode that this axis is not visible within the window.
       continue;
     }
 
-    // Get the two points where this cs-axis intersect with the window rectangle (in pixels).
-    math::Point const p1{intersections[0][0], intersections[0][1]};
-    math::Point const p2{intersections[1][0], intersections[1][1]};
-    line_piece_[axis] = math::LinePiece(p1, p2);
+    // See detail::intersect.
+    constexpr int from = 0;     // The index into intersection_point_pixels where the negative side of the axis intersects with the window rectangle.
+    constexpr int to = 1;       // Same, but the positive side of the axis.
+
+    line_piece_[axis] = math::LinePiece(intersection_point_pixels[from], intersection_point_pixels[to]);
     Dout(dc::notice, "line_piece_[" << axis << "] = " << line_piece_[axis]);
 
     // Convert the intersection points back to cs.
-    Point<cs> const p1_cs = Point<CS::pixels>(p1.x(), p1.y()) * pixels_transform_cs;
-    Point<cs> const p2_cs = Point<CS::pixels>(p2.x(), p2.y()) * pixels_transform_cs;
-    Dout(dc::notice, "p1_cs = " << p1_cs);
-    Dout(dc::notice, "p2_cs = " << p2_cs);
+    Point<cs> const from_cs = intersection_point_pixels[from] * pixels_transform_cs;
+    Point<cs> const   to_cs =   intersection_point_pixels[to] * pixels_transform_cs;
+    Dout(dc::notice, "from_cs = " << from_cs);
+    Dout(dc::notice, "to_cs = " << to_cs);
     // Extract the minimum and maximum values of the visible range.
-    double min = (axis == x_axis) ? p1_cs.x() : p1_cs.y();
-    double max = (axis == x_axis) ? p2_cs.x() : p2_cs.y();
-    // We don't really know if p1 is on the left or right (above or below) p2.
-    if (min > max)
-      std::swap(min, max);
+    double min = (axis == x_axis) ? from_cs.x() : from_cs.y();
+    double max = (axis == x_axis) ?   to_cs.x() :   to_cs.y();
+    ASSERT(min < max);
     // Set the range on each (visible) axis.
     set_range(axis, {min, max});
   }

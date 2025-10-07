@@ -32,3 +32,27 @@ add_executable(NiceDelta_test
 target_link_libraries(NiceDelta_test
   ${AICXX_OBJECTS_LIST}
 )
+
+add_executable(polytope_test
+  polytope_test.cpp
+)
+
+target_link_libraries(polytope_test
+  ${AICXX_OBJECTS_LIST}
+)
+
+add_executable(hypercube
+  hypercube.cpp
+)
+
+target_link_libraries(hypercube
+  ${AICXX_OBJECTS_LIST}
+)
+
+add_executable(graycode
+  graycode.cpp
+)
+
+target_link_libraries(graycode
+  ${AICXX_OBJECTS_LIST}
+)
