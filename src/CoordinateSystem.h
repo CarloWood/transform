@@ -41,7 +41,7 @@ inline std::shared_ptr<cairowindow::draw::Line> display_line(
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
-  intersections::HyperPlane<double, 2> line_({normal_x, normal_y}, point.x() * normal_x + point.y() * normal_y);
+  intersections::HyperPlane<double, 2> line_({normal_x, normal_y}, -(normal_x * point.x() + normal_y * point.y()));
   intersections::HyperBlock<double, 2> rectangle_({0, 0}, {window_width, window_height});
   auto intersections = rectangle_.intersection_points(line_);
 
@@ -468,7 +468,7 @@ std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, intersecti
 
   double normal_x = -line_cs.direction().y();
   double normal_y = line_cs.direction().x();
-  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, line_cs.point().x() * normal_x + line_cs.point().y() * normal_y);
+  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -(normal_x * line_cs.point().x() + normal_y* line_cs.point().y()));
   auto intersections_cs = rectangle_cs.intersection_points(line);
 
   // Is the line outside the window?
@@ -659,7 +659,7 @@ void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
-  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -point.x() * normal_x - point.y() * normal_y);
+  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -(normal_x * point.x()+ normal_y * point.y()));
   intersections::HyperBlock<double, 2> rectangle({range_[x_axis].min(), range_[y_axis].min()}, {range_[x_axis].max(), range_[y_axis].max()});
   auto intersections = rectangle.intersection_points(line);
 
