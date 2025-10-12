@@ -23,7 +23,7 @@ class Vector : public cairowindow::Vector
 
   // Construct a Vector that points in direction and has length.
   // Also used for automatic conversion from a Direction to a Vector.
-  Vector(math::Direction direction, double length = 1.0) : cairowindow::Vector(direction, length) { }
+  Vector(math::Direction<2> direction, double length = 1.0) : cairowindow::Vector(direction, length) { }
 
   // Construct a Vector from two points. If the second point is not given it defaults to the origin.
   // The direction is from the second argument (or origin) to the first argument.
@@ -31,10 +31,10 @@ class Vector : public cairowindow::Vector
   explicit Vector(Point<cs> const& to) : cairowindow::Vector(to) { }
 
   // Construct a Vector from a LinePiece, pointing from the first point to the second point.
-  explicit Vector(math::LinePiece const& line_piece) : cairowindow::Vector(line_piece) { }
+  explicit Vector(math::LinePiece<2> const& line_piece) : cairowindow::Vector(line_piece) { }
 
   // Convert the vector to a Point.
-  Point<cs> as_point() const { return {x_, y_}; }
+  Point<cs> as_point() const { return {x(), y()}; }
 
   // Call the base class implementations, but replace cairowindow::Vector with Vector.
   double dot(Vector const& v2) const { return cairowindow::Vector::dot(v2); }

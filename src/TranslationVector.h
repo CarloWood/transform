@@ -8,10 +8,10 @@ template<CS cs>
 class TranslationVector
 {
  private:
-  math::Vector translation_;
+  math::Vector<2> translation_;
 
  private:
-  TranslationVector(math::Vector const& translation) : translation_(translation) { }
+  TranslationVector(math::Vector<2> const& translation) : translation_(translation) { }
 
  public:
   TranslationVector(Point<cs> const& point) : translation_(point.x(), point.y()) { }

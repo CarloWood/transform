@@ -18,6 +18,6 @@ class Point : public cairowindow::Point
 
   Point operator+(Size<cs> const& size) const
   {
-    return {x_ + size.width(), y_ + size.height()};
+    return {x() + size.width(), y() + size.height()};
   }
 };

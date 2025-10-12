@@ -26,23 +26,25 @@
 #include <string>
 #include <vector>
 
+namespace cwin = cairowindow;
+
 #if 0
 //FIXME: move to .cxx
 #include "cairowindow/intersection_points.h"
-inline std::shared_ptr<cairowindow::draw::Line> display_line(
+inline std::shared_ptr<cwin::draw::Line> display_line(
     boost::intrusive_ptr<Layer> const& layer,
-    cairowindow::draw::LineStyle const& line_style,
-    math::Line const& line)
+    cwin::draw::LineStyle const& line_style,
+    cwin::Line const& line)
 {
   DoutEntering(dc::notice, "display_line(layer, line_style, " << line << ")");
 
-  math::Direction const& direction = line.direction();
-  math::Point const& point = line.point();
+  cwin::Direction const& direction = line.direction();
+  cwin::Point const& point = line.point();
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
-  intersections::HyperPlane<double, 2> line_({normal_x, normal_y}, -(normal_x * point.x() + normal_y * point.y()));
-  intersections::HyperBlock<double, 2> rectangle_({0, 0}, {window_width, window_height});
+  math::Hyperplane<2> line_({normal_x, normal_y}, -(normal_x * point.x() + normal_y * point.y()));
+  math::Hyperblock<2> rectangle_({0, 0}, {window_width, window_height});
   auto intersections = rectangle_.intersection_points(line_);
 
   // Is the line outside the plot area?
@@ -55,7 +57,7 @@ inline std::shared_ptr<cairowindow::draw::Line> display_line(
   double y2 = intersections[1][1];
 
   Dout(dc::notice, "Calling draw(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ", ...)");
-  std::shared_ptr<cairowindow::draw::Line> result = std::make_shared<cairowindow::draw::Line>(x1, y1, x2, y2, line_style);
+  std::shared_ptr<cwin::draw::Line> result = std::make_shared<cwin::draw::Line>(x1, y1, x2, y2, line_style);
   layer->draw(result);
   return result;
 }
@@ -63,17 +65,17 @@ inline std::shared_ptr<cairowindow::draw::Line> display_line(
 
 #if 0
 template<CS cs>
-class CoordinateSystem : public cairowindow::draw::PlotArea
+class CoordinateSystem : public cwin::draw::PlotArea
 {
  private:
-  std::vector<std::shared_ptr<cairowindow::draw::Line>> lines_;         // draw::Line objects that are part of the CoordinateSystem drawing.
-  std::vector<std::shared_ptr<cairowindow::draw::Text>> texts_;         // draw::Text objects that are part of the CoordinateSystem drawing.
+  std::vector<std::shared_ptr<cwin::draw::Line>> lines_;                // draw::Line objects that are part of the CoordinateSystem drawing.
+  std::vector<std::shared_ptr<cwin::draw::Text>> texts_;                // draw::Text objects that are part of the CoordinateSystem drawing.
   Transform<cs, CS::pixels> reference_transform_;                       // The Transform defining this CoordinateSystem.
 
  public:
   // Construct a CoordinateSystem from a Transform. Call `display` to draw it.
-  CoordinateSystem(Transform<cs, CS::pixels> const& reference_transform, cairowindow::draw::PlotAreaStyle const& plot_area_style) :
-    cairowindow::draw::PlotArea({0, 0, window_width, window_height}, plot_area_style),
+  CoordinateSystem(Transform<cs, CS::pixels> const& reference_transform, cwin::draw::PlotAreaStyle const& plot_area_style) :
+    cwin::draw::PlotArea({0, 0, window_width, window_height}, plot_area_style),
     reference_transform_(reference_transform)
   {
     DoutEntering(dc::notice, "CoordinateSystem<" << utils::to_string(cs) << ">::CoordinateSystem(" <<
@@ -91,19 +93,19 @@ void CoordinateSystem<cs>::display(boost::intrusive_ptr<Layer> const& layer)
   // Call display only once.
   ASSERT(lines_.empty());
 
-  using Line = cairowindow::draw::Line;
-  using LineStyle = cairowindow::draw::LineStyle;
-  namespace color = cairowindow::color;
+  using Line = cwin::draw::Line;
+  using LineStyle = cwin::draw::LineStyle;
+  namespace color = cwin::color;
 
   Point<CS::pixels> const csOrigin_pixels = Point<cs>{0, 0} * reference_transform_;
   Point<CS::pixels> const csP10_pixels    = Point<cs>{1, 0} * reference_transform_;
   Point<CS::pixels> const csP01_pixels    = Point<cs>{0, 1} * reference_transform_;
 
-  math::Point origin(csOrigin_pixels.x(), csOrigin_pixels.y());         // The (0, 0) (cs coordinates) point, in pixels coordinates.
-  math::Point P10(csP10_pixels.x(), csP10_pixels.y());                  // The (1, 0) (cs coordinates) point, in pixels coordinates.
-  math::Point P01(csP01_pixels.x(), csP01_pixels.y());                  // The (0, 1) (cs coordinates) point, in pixels coordinates.
-  math::Direction x_direction(origin, P10);
-  math::Direction y_direction(origin, P01);
+  cwin::Point origin(csOrigin_pixels.x(), csOrigin_pixels.y());         // The (0, 0) (cs coordinates) point, in pixels coordinates.
+  cwin::Point P10(csP10_pixels.x(), csP10_pixels.y());                  // The (1, 0) (cs coordinates) point, in pixels coordinates.
+  cwin::Point P01(csP01_pixels.x(), csP01_pixels.y());                  // The (0, 1) (cs coordinates) point, in pixels coordinates.
+  cwin::Direction x_direction(origin, P10);
+  cwin::Direction y_direction(origin, P01);
 
   // Draw the x-axis.
   lines_.emplace_back(display_line(layer, LineStyle({.line_color = color::red, .line_width = 1.0}), {origin, x_direction}));
@@ -114,38 +116,38 @@ void CoordinateSystem<cs>::display(boost::intrusive_ptr<Layer> const& layer)
 
 namespace draw {
 
-// Things from cairowindow::draw that we can use as-is.
-using PlotArea = cairowindow::draw::PlotArea;
-//using PlotAreaStyle = cairowindow::draw::PlotAreaStyle;
-using LineStyle = cairowindow::draw::LineStyle;
-//using PointStyle = cairowindow::draw::PointStyle;
-//using ConnectorStyle = cairowindow::draw::ConnectorStyle;
-//using RectangleStyle = cairowindow::draw::RectangleStyle;
-//using CircleStyle = cairowindow::draw::CircleStyle;
-//using ArcStyle = cairowindow::draw::ArcStyle;
-//using TextStyle = cairowindow::draw::TextStyle;
+// Things from cwin::draw that we can use as-is.
+using PlotArea = cwin::draw::PlotArea;
+//using PlotAreaStyle = cwin::draw::PlotAreaStyle;
+using LineStyle = cwin::draw::LineStyle;
+//using PointStyle = cwin::draw::PointStyle;
+//using ConnectorStyle = cwin::draw::ConnectorStyle;
+//using RectangleStyle = cwin::draw::RectangleStyle;
+//using CircleStyle = cwin::draw::CircleStyle;
+//using ArcStyle = cwin::draw::ArcStyle;
+//using TextStyle = cwin::draw::TextStyle;
 
-// Things from cairowindow::plot that we can use as-is.
-using cairowindow::plot::x_axis;
-using cairowindow::plot::y_axis;
+// Things from cwin::plot that we can use as-is.
+using cwin::plot::x_axis;
+using cwin::plot::y_axis;
 
 template<CS cs>
 class CoordinateSystem
 {
   static constexpr int number_of_axes = PlotArea::number_of_axes;
-  using Direction = cairowindow::Direction;
+  using Direction = cwin::Direction;
 
  private:
   Transform<cs, CS::pixels> cs_transform_pixels_;                       // The Transform defining this CoordinateSystem.
   LineStyle axis_style_;                                                // The linestyle to use for the axes and tickmarks.
   Point<CS::pixels> csOrigin_pixels_;                                   // The origin in pixels.
   std::array<Direction, number_of_axes> csAxisDirection_;               // The direction of the x-axis and y-axis (in CS::pixels).
-  std::vector<std::shared_ptr<cairowindow::draw::Line>> lines_;         // To keep drawn lines alive.
-  std::vector<std::shared_ptr<cairowindow::draw::Text>> texts_;         // To keep drawn texts alive.
-  std::array<math::LinePiece, number_of_axes> line_piece_;              // The visible part of the axes (in CS::pixels).
+  std::vector<std::shared_ptr<cwin::draw::Line>> lines_;                // To keep drawn lines alive.
+  std::vector<std::shared_ptr<cwin::draw::Text>> texts_;                // To keep drawn texts alive.
+  std::array<cwin::LinePiece, number_of_axes> line_piece_;              // The visible part of the axes (in CS::pixels).
 
  private:
-  using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
+  using LayerPtr = boost::intrusive_ptr<cwin::Layer>;
   using PointPtr = std::shared_ptr<Point<cs>>;
   using LinePtr = std::shared_ptr<Line<cs>>;
   using RectanglePtr = std::shared_ptr<Rectangle<cs>>;
@@ -187,16 +189,16 @@ class CoordinateSystem
     Dout(dc::notice, "range_[" << axis << "] = " << range_[axis] << "; range_ticks_[" << axis << "] = " << range_ticks_[axis]);
   }
 
-  cairowindow::Point clamp_to_plot_area(cairowindow::Point const& point) const
+  cwin::Point clamp_to_plot_area(cwin::Point const& point) const
   {
     return {std::clamp(point.x(), range_[x_axis].min(), range_[x_axis].max()),
             std::clamp(point.y(), range_[y_axis].min(), range_[y_axis].max())};
   }
 
-  cairowindow::Range const& xrange() const { return range_[x_axis]; }
-  cairowindow::Range const& yrange() const { return range_[y_axis]; }
+  cwin::Range const& xrange() const { return range_[x_axis]; }
+  cwin::Range const& yrange() const { return range_[y_axis]; }
 
-  cairowindow::Rectangle viewport() const
+  cwin::Rectangle viewport() const
   {
     return {range_[x_axis].min(), range_[y_axis].min(), range_[x_axis].size(), range_[y_axis].size()};
   }
@@ -204,19 +206,19 @@ class CoordinateSystem
 #if 0
   double convert_x(double x) const;
   double convert_y(double y) const;
-  Pixel convert_to_pixel(cairowindow::Point const& point) const;
+  Pixel convert_to_pixel(cwin::Point const& point) const;
 
   double convert_from_pixel_x(double pixel_x) const;
   double convert_from_pixel_y(double pixel_y) const;
-  cairowindow::Point convert_from_pixel(Pixel const& pixel) const;
+  cwin::Point convert_from_pixel(Pixel const& pixel) const;
 
   double convert_horizontal_offset_from_pixel(double pixel_offset_x) const;
   double convert_vertical_offset_from_pixel(double pixel_offset_y) const;
 
-  void convert_to_pixels(cairowindow::Point const* data_in, Pixel* data_out, std::size_t size);
+  void convert_to_pixels(cwin::Point const* data_in, Pixel* data_out, std::size_t size);
 
   template<std::size_t size>
-  [[gnu::always_inline]] void convert_to_pixels(std::array<cairowindow::Point, size> const& in, std::array<Pixel, size>& out)
+  [[gnu::always_inline]] void convert_to_pixels(std::array<cwin::Point, size> const& in, std::array<Pixel, size>& out)
   {
     convert_to_pixels(in.data(), out.data(), size);
   }
@@ -462,13 +464,13 @@ namespace detail {
 // The points are returned as a Point<cs>. The caller is responsible to
 // make sure that the rectangle uses that same coordinate system.
 template<CS cs>
-std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, intersections::HyperBlock<double, 2> rectangle_cs)
+std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, math::Hyperblock<2> rectangle_cs)
 {
 //  DoutEntering(dc::notice, "detail::intersect(" << line_cs << ", " << rectangle_cs << ")");
 
   double normal_x = -line_cs.direction().y();
   double normal_y = line_cs.direction().x();
-  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -(normal_x * line_cs.point().x() + normal_y* line_cs.point().y()));
+  math::Hyperplane<2> line({normal_x, normal_y}, -(normal_x * line_cs.point().x() + normal_y* line_cs.point().y()));
   auto intersections_cs = rectangle_cs.intersection_points(line);
 
   // Is the line outside the window?
@@ -522,8 +524,8 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
     // Is the line outside the window?
     if (number_of_intersection_points < 2)
     {
-      math::Point const origin(0, 0);
-      line_piece_[axis] = math::LinePiece{origin, origin};      // Use twice the same point to encode that this axis is not visible within the window.
+      cwin::Point const origin(0, 0);
+      line_piece_[axis] = cwin::LinePiece{origin, origin};      // Use twice the same point to encode that this axis is not visible within the window.
       continue;
     }
 
@@ -531,7 +533,7 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
     constexpr int from = 0;     // The index into intersection_point_pixels where the negative side of the axis intersects with the window rectangle.
     constexpr int to = 1;       // Same, but the positive side of the axis.
 
-    line_piece_[axis] = math::LinePiece(intersection_point_pixels[from], intersection_point_pixels[to]);
+    line_piece_[axis] = cwin::LinePiece(intersection_point_pixels[from], intersection_point_pixels[to]);
     Dout(dc::notice, "line_piece_[" << axis << "] = " << line_piece_[axis]);
 
     // Convert the intersection points back to cs.
@@ -560,7 +562,7 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
     if (range_[axis].size() == 0.0)     // Not visible?
       continue;
     // Draw the piece of the axis that is visible.
-    lines_.emplace_back(std::make_shared<cairowindow::draw::Line>(
+    lines_.emplace_back(std::make_shared<cwin::draw::Line>(
           line_piece_[axis].from().x(), line_piece_[axis].from().y(),
           line_piece_[axis].to().x(), line_piece_[axis].to().y(),
           axis_style_));
@@ -595,7 +597,7 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
       Direction axis_pixels{csOrigin_pixels_, tick_pixels};
       Direction axis_tickmark_pixels = (axis == x_axis) == (k < 0) ? axis_pixels.normal() : axis_pixels.normal_inverse();
       Point<CS::pixels> tick_end_pixels = tick_pixels + Vector<CS::pixels>{axis_tickmark_pixels, 5.0};
-      lines_.emplace_back(std::make_shared<cairowindow::draw::Line>(
+      lines_.emplace_back(std::make_shared<cwin::draw::Line>(
             tick_pixels.x(), tick_pixels.y(),
             tick_end_pixels.x(), tick_end_pixels.y(),
             axis_style_));
@@ -606,23 +608,23 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
       std::string label = range_ticks_[axis].label(k);
 
       double rotation = axis_angle;
-      cairowindow::draw::TextPosition position;
+      cwin::draw::TextPosition position;
       if (axis_prefers_parallel)
-        position = axis_tickmark_pixels.y() < 0 ? cairowindow::draw::centered_above : cairowindow::draw::centered_below;
+        position = axis_tickmark_pixels.y() < 0 ? cwin::draw::centered_above : cwin::draw::centered_below;
       else
       {
         rotation += 0.5 * pi;
-        position = axis_tickmark_pixels.x() < 0 ? cairowindow::draw::centered_left_of : cairowindow::draw::centered_right_of;
+        position = axis_tickmark_pixels.x() < 0 ? cwin::draw::centered_left_of : cwin::draw::centered_right_of;
       }
       rotation = normalize_readable(rotation);
 
-      cairowindow::draw::TextStyle text_style({
+      cwin::draw::TextStyle text_style({
           .position = position,
           .color = axis_style_.line_color(),
           .rotation = rotation
       });
 
-      texts_.emplace_back(std::make_shared<cairowindow::draw::Text>(
+      texts_.emplace_back(std::make_shared<cwin::draw::Text>(
             label,
             text_anchor_pixels.x(),
             text_anchor_pixels.y(),
@@ -654,13 +656,13 @@ void CoordinateSystem<cs>::add_point(LayerPtr const& layer, PointStyle const& po
 template<CS cs>
 void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line_style, LinePtr const& cs_line)
 {
-  cairowindow::Direction const& direction = plot_line.direction();
-  cairowindow::Point const& point = plot_line.point();
+  cwin::Direction const& direction = plot_line.direction();
+  cwin::Point const& point = plot_line.point();
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
-  intersections::HyperPlane<double, 2> line({normal_x, normal_y}, -(normal_x * point.x()+ normal_y * point.y()));
-  intersections::HyperBlock<double, 2> rectangle({range_[x_axis].min(), range_[y_axis].min()}, {range_[x_axis].max(), range_[y_axis].max()});
+  math::Hyperplane<2> line({normal_x, normal_y}, -(normal_x * point.x()+ normal_y * point.y()));
+  math::Hyperblock<2> rectangle({range_[x_axis].min(), range_[y_axis].min()}, {range_[x_axis].max(), range_[y_axis].max()});
   auto intersections = rectangle.intersection_points(line);
 
   // Is the line outside the plot area?
@@ -701,7 +703,7 @@ void CoordinateSystem<cs>::add_rectangle(LayerPtr const& layer, RectangleStyle c
 template<CS cs>
 void CoordinateSystem<cs>::add_text(LayerPtr const& layer, TextStyle const& text_style, TextPtr const& cs_text)
 {
-  cairowindow::Pixel position = plot_text.position();
+  cwin::Pixel position = plot_text.position();
   std::string const& text = plot_text.text();
 
   plot_text.draw_object_ = std::make_shared<draw::Text>(text, position.x(), position.y(), text_style);
