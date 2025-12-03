@@ -7,7 +7,6 @@
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Text.h"
 #include "cairowindow/draw/PlotArea.h"
-#include "cairowindow/intersection_points.h"
 #include "math/Line.h"
 #include "utils/AIAlert.h"
 #include "utils/debug_ostream_operators.h"
