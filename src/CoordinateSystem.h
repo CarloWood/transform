@@ -470,7 +470,7 @@ std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, math::Hype
 
   double normal_x = -line_cs.direction().y();
   double normal_y = line_cs.direction().x();
-  math::Hyperplane<2> line({normal_x, normal_y}, -(normal_x * line_cs.point().x() + normal_y* line_cs.point().y()));
+  math::Hyperplane<2> line({normal_x, normal_y}, -(normal_x * line_cs.point().x() + normal_y * line_cs.point().y()));
   auto intersections_cs = rectangle_cs.intersection_points(line);
 
   // Is the line outside the window?

@@ -46,6 +46,9 @@ add_executable(hypercube
 )
 
 target_link_libraries(hypercube
+  AICxx::cairowindow
+  AICxx::symbolic
+  AICxx::math
   ${AICXX_OBJECTS_LIST}
 )
 
