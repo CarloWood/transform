@@ -98,19 +98,7 @@ int main()
 {
   Debug(NAMESPACE_DEBUG::init());
 
-  // Number of dimensions.
-  constexpr int n  = 7;
-
   using namespace intersections;
-
-  Printer printer(n);
-  Corner corner;                // Origin.
-
-  math::Hyperblock<n> hypercube({0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1});
-  math::Hyperplane<n> hyperplane({1, 1, 1, 1, 1, 1, 1}, -3.5);
-
-  auto intersections = hypercube.intersection_points(hyperplane);
-  Dout(dc::notice, "intersections = " << intersections.size());
 
   try
   {
