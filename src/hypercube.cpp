@@ -163,16 +163,9 @@ int main()
       // Define the universe: the tesseract lives in 4D space.
       using U = math::Universe<Id, 4>;
 
-      // Construct a orthonormal basis for the hyperplane.
-      //
-      // We do this by first rotating the universe so that the hyperplane aligns with
-      // the first three coordinates, and then simply remove the fourth coordinate.
-
-      // Create a 4D basis that is just the identity.
-      math::Basis<U> b;
-      // Rotate the hyperplane normal to e_3 (which is the coordinate that we're going to ignore).
-      b.rotate_from_to(hyperplane_normal, U::standard_basis.e(3));
-//      Coordinate Universe
+      // Construct a 3D orthonormal basis for the hyperplace.
+      math::SubSpace<U, 1> orthogonal_subspace(hyperplane_normal);
+      math::Basis<U, 3> b(orthogonal_subspace);
 
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
