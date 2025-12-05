@@ -1,5 +1,6 @@
 #include "sys.h"
 #include "math/Hyperblock.h"
+#include "math/Universe.h"
 #include "cairowindow/intersection_points.h"
 #include "cairowindow/Window.h"
 #include "cairowindow/Layer.h"
@@ -94,6 +95,10 @@ auto Sliders::add(std::string label, double start_value, double min_value, doubl
   return [this, index](){ return sliders_[index].value(); };
 }
 
+enum Id {
+  universe_id
+};
+
 int main()
 {
   Debug(NAMESPACE_DEBUG::init());
@@ -145,15 +150,29 @@ int main()
       // Suppress immediate updating of the window for each created item, in order to avoid flickering.
       window.set_send_expose_events(false);
 
-      math::Vector<4> normal{
+      math::Vector<4> hyperplane_normal{
         std::cos(alpha()),
         std::sin(alpha()) * std::cos(beta()),
         std::sin(alpha()) * std::sin(beta()) * std::cos(gamma()),
         std::sin(alpha()) * std::sin(beta()) * std::sin(gamma())
       };
-      math::Vector<4> offset = offset_value() * normal;
+      math::Vector<4> offset = offset_value() * hyperplane_normal;
       math::Vector<4> P = center + offset;
-      math::Hyperplane hyperplane(normal, -(P.dot(normal)));
+      math::Hyperplane hyperplane(hyperplane_normal, -(P.dot(hyperplane_normal)));
+
+      // Define the universe: the tesseract lives in 4D space.
+      using U = math::Universe<Id, 4>;
+
+      // Construct a orthonormal basis for the hyperplane.
+      //
+      // We do this by first rotating the universe so that the hyperplane aligns with
+      // the first three coordinates, and then simply remove the fourth coordinate.
+
+      // Create a 4D basis that is just the identity.
+      math::Basis<U> b;
+      // Rotate the hyperplane normal to e_3 (which is the coordinate that we're going to ignore).
+      b.rotate_from_to(hyperplane_normal, U::standard_basis.e(3));
+//      Coordinate Universe
 
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
