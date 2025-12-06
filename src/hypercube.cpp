@@ -150,22 +150,41 @@ int main()
       // Suppress immediate updating of the window for each created item, in order to avoid flickering.
       window.set_send_expose_events(false);
 
-      math::Vector<4> hyperplane_normal{
+      // Coordinate systems:
+      // _uc : 4D Universe Coordinates.
+      // _hc : 3D Hyperplane Coordinates.
+      // _wc : 2D Windowplane Coordinates.
+
+      math::Vector<4> hyperplane_normal_uc{
         std::cos(alpha()),
         std::sin(alpha()) * std::cos(beta()),
         std::sin(alpha()) * std::sin(beta()) * std::cos(gamma()),
         std::sin(alpha()) * std::sin(beta()) * std::sin(gamma())
       };
-      math::Vector<4> offset = offset_value() * hyperplane_normal;
-      math::Vector<4> P = center + offset;
-      math::Hyperplane hyperplane(hyperplane_normal, -(P.dot(hyperplane_normal)));
+      math::Vector<4> offset_uc = offset_value() * hyperplane_normal_uc;
+      math::Vector<4> P_uc = center + offset_uc;
+      math::Hyperplane hyperplane(hyperplane_normal_uc, -(P_uc.dot(hyperplane_normal_uc)));
 
       // Define the universe: the tesseract lives in 4D space.
       using U = math::Universe<Id, 4>;
 
-      // Construct a 3D orthonormal basis for the hyperplace.
-      math::SubSpace<U, 1> orthogonal_subspace(hyperplane_normal);
-      math::Basis<U, 3> b(orthogonal_subspace);
+      // Construct a 3D orthonormal basis for the hyperplane.
+      math::SubSpace<U, 1> hyperplane_orthogonal_subspace(hyperplane_normal_uc);
+      math::Basis<U, 3> hyperplane_basis(hyperplane_orthogonal_subspace);
+
+      Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
+
+      math::Vector<3> windowplane_normal_hc{
+        std::sin(theta()) * std::cos(phi()),
+        std::sin(theta()) * std::sin(phi()),
+        std::cos(theta())
+      };
+      math::Hyperplane windowplane(windowplane_normal_hc, 0);
+
+      // Construct a 2D orthonormal basis for the windowplane.
+//      math::Matrix<3, 4> hc_to_uc = hyperplane_basis.hc_to_uc();
+//      math::SubSpace<U, 2> windowplane_orthogonal_subspace(hyperplane_normal_uc, windowplane_normal_hc * hc_to_uc);
+//      math::Basis<U, 2> windowplane_basis(windowplane_orthogonal_subspace);
 
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
