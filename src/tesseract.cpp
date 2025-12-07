@@ -148,20 +148,40 @@ int main()
     Sliders sliders(second_layer, window.geometry());
 
     sliders.first_row("Tesseract pos. rel. to hyperplane");
-    auto alpha  = sliders.add("alpha", 1.0, 0.0, M_PI);
-    auto beta   = sliders.add("beta", 1.0, 0.0, M_PI);
-    auto gamma  = sliders.add("gamma", 1.0, 0.0, 2.0 * M_PI);
-    auto offset_value = sliders.add("offset", 0.0, -1.0, 1.0);
+    auto alpha_slider  = sliders.add("alpha", 1.0, 0.0, M_PI);
+    auto beta_slider   = sliders.add("beta", 1.0, 0.0, M_PI);
+    auto gamma_slider  = sliders.add("gamma", 1.0, 0.0, 2.0 * M_PI);
+    auto offset_value_slider = sliders.add("offset", 0.0, -1.0, 1.0);
 
     sliders.next_row("Hyperplane pos. rel. to screen");
-    auto theta  = sliders.add("theta", 1.0, 0.0, M_PI);          // Angle relative to positive z-axis.
-    auto phi    = sliders.add("phi", 1.0, 0.0, 2.0 * M_PI);      // Angle relative to positive x-axis.
+    auto theta_slider  = sliders.add("theta", 1.0, 0.0, M_PI);          // Angle relative to positive z-axis.
+    auto phi_slider    = sliders.add("phi", 1.0, 0.0, 2.0 * M_PI);      // Angle relative to positive x-axis.
 
     math::Vector<4> const center(0.5, 0.5, 0.5, 0.5);
     math::Hyperblock<4> const tesseract({0, 0, 0, 0}, {1, 1, 1, 1});
 
     for (;;)
     {
+      double const alpha = alpha_slider();
+      double const beta = beta_slider();
+      double const gamma = gamma_slider();
+      double const offset_value = offset_value_slider();
+      double const theta = theta_slider();
+      double const phi = phi_slider();
+
+      constexpr double step = 0.5;
+      for (double alpha = 0.5; alpha < M_PI; alpha += step)
+      {
+        Dout(dc::notice, "alpha = " << alpha);
+        for (double beta = 0.5; beta < M_PI; beta += step)
+        {
+          Dout(dc::notice, "beta = " << beta);
+          for (double gamma = 1.5; gamma < 2.0 * M_PI; gamma += step)
+            for (double theta = 1.0; theta < M_PI; theta += step)
+              for (double phi = 0.5; phi < 2.0 * M_PI; phi += step)
+              {
+                Dout(dc::notice, "alpha = " << alpha << ", beta = " << beta << ", gamma = " << gamma << ", theta = " << theta << ", phi = " << phi);
+
       // Suppress immediate updating of the window for each created item, in order to avoid flickering.
       window.set_send_expose_events(false);
 
@@ -171,12 +191,12 @@ int main()
       // _wc : 2D Windowplane Coordinates.
 
       math::Vector<4> hyperplane_normal_uc{
-        std::cos(alpha()),
-        std::sin(alpha()) * std::cos(beta()),
-        std::sin(alpha()) * std::sin(beta()) * std::cos(gamma()),
-        std::sin(alpha()) * std::sin(beta()) * std::sin(gamma())
+        std::cos(alpha),
+        std::sin(alpha) * std::cos(beta),
+        std::sin(alpha) * std::sin(beta) * std::cos(gamma),
+        std::sin(alpha) * std::sin(beta) * std::sin(gamma)
       };
-      math::Vector<4> offset_uc = offset_value() * hyperplane_normal_uc;
+      math::Vector<4> offset_uc = offset_value * hyperplane_normal_uc;
       math::Vector<4> P_uc = center + offset_uc;
       math::Hyperplane hyperplane_uc(hyperplane_normal_uc, -(P_uc.dot(hyperplane_normal_uc)));
 
@@ -192,9 +212,9 @@ int main()
       //Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
 
       math::Vector<3> windowplane_normal_hc{
-        std::sin(theta()) * std::cos(phi()),
-        std::sin(theta()) * std::sin(phi()),
-        std::cos(theta())
+        std::sin(theta) * std::cos(phi),
+        std::sin(theta) * std::sin(phi),
+        std::cos(theta)
       };
       math::Hyperplane windowplane(windowplane_normal_hc, 0);
 
@@ -207,14 +227,17 @@ int main()
       //Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
 
       utils::Array<math::Vector<3>, 1 << 4, CornerIndex> hyperplane_corners;
+      utils::Array<double, 1 << 4, CornerIndex> corner_depths;
       utils::Array<math::Vector<2>, 1 << 4, CornerIndex> projected_corners;
       auto const hc_to_wc = hc_to_uc * uc_to_wc;
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
         math::Vector<4> const& corner_uc = tesseract[ci] - center;
         math::Vector<3> hyperplane_projection_hc = hyperplane_uc.project(corner_uc) * uc_to_hc;
+        double const depth = windowplane.signed_distance(hyperplane_projection_hc);
         math::Vector<2> windowplane_projection_wc = windowplane.project(hyperplane_projection_hc) * hc_to_wc;
         hyperplane_corners[ci] = hyperplane_projection_hc;
+        corner_depths[ci] = depth;
         projected_corners[ci] = windowplane_projection_wc;
       }
 
@@ -229,6 +252,8 @@ int main()
         math::Point<2> to_wc;
         math::Vector<3> from_hc;
         math::Vector<3> to_hc;
+        double from_depth;
+        double to_depth;
         int axis;
       };
 
@@ -249,7 +274,7 @@ int main()
             continue;   // Only add each edge once.
 
           edges.push_back({ci, adjacent_ci, projected_corners[ci].as_point(), projected_corners[adjacent_ci].as_point(),
-              hyperplane_corners[ci], hyperplane_corners[adjacent_ci], d});
+              hyperplane_corners[ci], hyperplane_corners[adjacent_ci], corner_depths[ci], corner_depths[adjacent_ci], d});
         }
       }
 
@@ -257,6 +282,7 @@ int main()
       std::vector<int> indegree(edges.size(), 0);
       auto add_relation = [&](int back, int front)
       {
+        Dout(dc::notice, back << " < " << front);
         graph[back].push_back(front);
         ++indegree[front];
       };
@@ -271,13 +297,44 @@ int main()
           Edge const& e2 = edges[i2];
 
           if (e1.from == e2.from || e1.from == e2.to || e1.to == e2.from || e1.to == e2.to)
-            continue;   // Edges that share a corner always intersect there; ignore those.
+          {
+#if 1
+            // The edges share a corner. Use the other corners to determine the depth.
+            // Get the signed distance of those other corners to the windowplane.
+            double const distance1 = corner_depths[e1.from == e2.from || e1.from == e2.to ? e1.to : e1.from];
+            double const distance2 = corner_depths[e1.from == e2.from || e1.to == e2.from ? e2.to : e2.from];
+            if (distance1 < distance2)
+            {
+              Dout(dc::notice, "!:");
+              add_relation(i1, i2);     // e1 is behind e2.
+            }
+            else
+            {
+              Dout(dc::notice, "!:");
+              add_relation(i2, i1);     // e2 is behind e1.
+            }
+#endif
+            continue;
+          }
 
           math::Vector<2> const segment1(e1.from_wc, e1.to_wc);
           math::Vector<2> const segment2(e2.from_wc, e2.to_wc);
 
           if (e1.axis == e2.axis)
-            continue;   // Parallel edges.
+          {
+#if 0
+            // Parallel edges.
+            // We can use the corners to determine the distance (using std::max would offset both
+            // distances with the same amount and does not change the ordering).
+            double const distance1 = std::min(corner_depths[e1.from], corner_depths[e1.to]);
+            double const distance2 = std::min(corner_depths[e2.from], corner_depths[e2.to]);
+            if (distance1 < distance2)
+              add_relation(i1, i2);     // e1 is behind e2.
+            else
+              add_relation(i2, i1);     // e2 is behind e1.
+#endif
+            continue;
+          }
 
           if (std::abs(segment1.cross(segment2)) < parallel_epsilon)
             continue;   // Parallel in the windowplane.
@@ -307,9 +364,9 @@ int main()
 
           if (std::abs(distance1 - distance2) < parallel_epsilon)
           {
-            // This should never happen.
-            ASSERT(false);
-            continue;   // Effectively the same depth; drawing order doesn't matter.
+            // Effectively the same depth; we could use the signed distance of the project
+            // from 4D to the hyperplace, but this never happens anyway in reality.
+            continue;
           }
 
           if (distance1 < distance2)
@@ -323,7 +380,7 @@ int main()
       edge_depths.reserve(edges.size());
       for (Edge const& edge : edges)
       {
-        double const depth = 0.5 * (windowplane.signed_distance(edge.from_hc) + windowplane.signed_distance(edge.to_hc));
+        double const depth = 0.5 * (edge.from_depth + edge.to_depth);
         edge_depths.push_back(depth);
       }
 
@@ -375,6 +432,10 @@ int main()
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
+
+              } // next angle
+        }
+      }
 
       // Block until a key is pressed.
       if (!window.handle_input_events())
