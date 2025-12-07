@@ -217,7 +217,7 @@ int main()
       {
         cairowindow::Point const corner{projected_corners[ci].as_point() + window_center};
         draw_corners.push_back(std::make_shared<draw::Point>(corner, point_style));
-//        second_layer->draw(draw_corners.back());
+        //second_layer->draw(draw_corners.back());
 
         static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
         for (int d = 0; d < 4; ++d)
@@ -226,6 +226,8 @@ int main()
           CornerIndex const adjacent_ci{ci.get_value() ^ bit};
 
           cairowindow::Point const adjacent_corner{projected_corners[adjacent_ci].as_point() + window_center};
+          draw_edges.push_back(std::make_shared<draw::Line>(corner, adjacent_corner, line_style({.line_color = color::white, .line_width = 3.0})));
+          second_layer->draw(draw_edges.back());
           draw_edges.push_back(std::make_shared<draw::Line>(corner, adjacent_corner, line_style({.line_color = axis_color[d]})));
           second_layer->draw(draw_edges.back());
         }
