@@ -41,11 +41,11 @@ target_link_libraries(polytope_test
   ${AICXX_OBJECTS_LIST}
 )
 
-add_executable(hypercube
-  hypercube.cpp
+add_executable(tesseract
+  tesseract.cpp
 )
 
-target_link_libraries(hypercube
+target_link_libraries(tesseract
   AICxx::cairowindow
   AICxx::symbolic
   AICxx::math
