@@ -119,7 +119,7 @@ int main()
     Window window("hypercube", 1200, 900);
 
     // The center of the free space (where there aren't sliders).
-    math::Vector<2, double> const window_center{window_center_x, window_center_y};
+    math::Vector<2> const window_center{window_center_x, window_center_y};
 
     // Create a new layer with a white background.
     auto background_layer = window.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
