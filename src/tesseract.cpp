@@ -1,6 +1,7 @@
 #include "sys.h"
 #include "math/Hyperblock.h"
 #include "math/Universe.h"
+#include "math/Line.h"
 #include "cairowindow/intersection_points.h"
 #include "cairowindow/Window.h"
 #include "cairowindow/Layer.h"
@@ -8,7 +9,11 @@
 #include "utils/print_using.h"
 #include "utils/AIAlert.h"
 #include "utils/Array.h"
+#include <array>
+#include <algorithm>
 #include <cmath>
+#include <numeric>
+#include <queue>
 #include <thread>
 #include "debug.h"
 #ifdef CWDEBUG
@@ -201,6 +206,7 @@ int main()
 
       //Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
 
+      utils::Array<math::Vector<3>, 1 << 4, CornerIndex> hyperplane_corners;
       utils::Array<math::Vector<2>, 1 << 4, CornerIndex> projected_corners;
       auto const hc_to_wc = hc_to_uc * uc_to_wc;
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
@@ -208,29 +214,163 @@ int main()
         math::Vector<4> const& corner_uc = tesseract[ci] - center;
         math::Vector<3> hyperplane_projection_hc = hyperplane_uc.project(corner_uc) * uc_to_hc;
         math::Vector<2> windowplane_projection_wc = windowplane.project(hyperplane_projection_hc) * hc_to_wc;
+        hyperplane_corners[ci] = hyperplane_projection_hc;
         projected_corners[ci] = windowplane_projection_wc;
       }
 
       std::vector<std::shared_ptr<draw::Point>> draw_corners;
       std::vector<std::shared_ptr<draw::Line>> draw_edges;
+
+      struct Edge
+      {
+        CornerIndex from;
+        CornerIndex to;
+        math::Point<2> from_wc;
+        math::Point<2> to_wc;
+        math::Vector<3> from_hc;
+        math::Vector<3> to_hc;
+        int axis;
+      };
+
+      std::vector<Edge> edges;
+      edges.reserve(32);
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
         cairowindow::Point const corner{projected_corners[ci].as_point() + window_center};
         draw_corners.push_back(std::make_shared<draw::Point>(corner, point_style));
         //second_layer->draw(draw_corners.back());
 
-        static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
         for (int d = 0; d < 4; ++d)
         {
           size_t const bit = math::detail::to_mask(d);
           CornerIndex const adjacent_ci{ci.get_value() ^ bit};
 
-          cairowindow::Point const adjacent_corner{projected_corners[adjacent_ci].as_point() + window_center};
-          draw_edges.push_back(std::make_shared<draw::Line>(corner, adjacent_corner, line_style({.line_color = color::white, .line_width = 3.0})));
-          second_layer->draw(draw_edges.back());
-          draw_edges.push_back(std::make_shared<draw::Line>(corner, adjacent_corner, line_style({.line_color = axis_color[d]})));
-          second_layer->draw(draw_edges.back());
+          if (ci.get_value() > adjacent_ci.get_value())
+            continue;   // Only add each edge once.
+
+          edges.push_back({ci, adjacent_ci, projected_corners[ci].as_point(), projected_corners[adjacent_ci].as_point(),
+              hyperplane_corners[ci], hyperplane_corners[adjacent_ci], d});
         }
+      }
+
+      std::vector<std::vector<int>> graph(edges.size());
+      std::vector<int> indegree(edges.size(), 0);
+      auto add_relation = [&](int back, int front)
+      {
+        graph[back].push_back(front);
+        ++indegree[front];
+      };
+
+      constexpr double parallel_epsilon = 1e-12;
+      constexpr double intersection_epsilon = 1e-9;
+      for (int i1 = 0; i1 < static_cast<int>(edges.size()) - 1; ++i1)
+      {
+        for (int i2 = i1 + 1; i2 < static_cast<int>(edges.size()); ++i2)
+        {
+          Edge const& e1 = edges[i1];
+          Edge const& e2 = edges[i2];
+
+          if (e1.from == e2.from || e1.from == e2.to || e1.to == e2.from || e1.to == e2.to)
+            continue;   // Edges that share a corner always intersect there; ignore those.
+
+          math::Vector<2> const segment1(e1.from_wc, e1.to_wc);
+          math::Vector<2> const segment2(e2.from_wc, e2.to_wc);
+
+          if (e1.axis == e2.axis)
+            continue;   // Parallel edges.
+
+          if (std::abs(segment1.cross(segment2)) < parallel_epsilon)
+            continue;   // Parallel in the windowplane.
+
+          math::Line<2> const line1(e1.from_wc, math::Direction<2>(e1.from_wc, e1.to_wc));
+          math::Line<2> const line2(e2.from_wc, math::Direction<2>(e2.from_wc, e2.to_wc));
+          math::Point<2> const intersection = line1.intersection_with(line2);
+
+          math::Vector<2> const from_start1(e1.from_wc, intersection);
+          math::Vector<2> const from_start2(e2.from_wc, intersection);
+
+          double const lambda1 = from_start1.dot(segment1) / segment1.norm_squared();
+          double const lambda2 = from_start2.dot(segment2) / segment2.norm_squared();
+
+          if (lambda1 <= intersection_epsilon || lambda1 >= 1.0 - intersection_epsilon ||
+              lambda2 <= intersection_epsilon || lambda2 >= 1.0 - intersection_epsilon)
+            continue;   // Intersection lies outside the edge segment (or too close to a corner).
+
+          math::Vector<3> const e1_segment = e1.to_hc - e1.from_hc;
+          math::Vector<3> const e2_segment = e2.to_hc - e2.from_hc;
+
+          math::Vector<3> const intersection1_hc = e1.from_hc + lambda1 * e1_segment;
+          math::Vector<3> const intersection2_hc = e2.from_hc + lambda2 * e2_segment;
+
+          double const distance1 = windowplane.signed_distance(intersection1_hc);
+          double const distance2 = windowplane.signed_distance(intersection2_hc);
+
+          if (std::abs(distance1 - distance2) < parallel_epsilon)
+          {
+            // This should never happen.
+            ASSERT(false);
+            continue;   // Effectively the same depth; drawing order doesn't matter.
+          }
+
+          if (distance1 < distance2)
+            add_relation(i1, i2);     // e1 is behind e2.
+          else
+            add_relation(i2, i1);     // e2 is behind e1.
+        }
+      }
+
+      std::vector<double> edge_depths;
+      edge_depths.reserve(edges.size());
+      for (Edge const& edge : edges)
+      {
+        double const depth = 0.5 * (windowplane.signed_distance(edge.from_hc) + windowplane.signed_distance(edge.to_hc));
+        edge_depths.push_back(depth);
+      }
+
+      auto const compare_depth = [&](int lhs, int rhs)
+      {
+        return edge_depths[lhs] > edge_depths[rhs];
+      };
+
+      std::priority_queue<int, std::vector<int>, decltype(compare_depth)> ready(compare_depth);
+      for (int i = 0; i < static_cast<int>(edges.size()); ++i)
+        if (indegree[i] == 0)
+          ready.push(i);
+
+      std::vector<int> draw_order;
+      draw_order.reserve(edges.size());
+      while (!ready.empty())
+      {
+        int const idx = ready.top();
+        ready.pop();
+        draw_order.push_back(idx);
+        for (int const front : graph[idx])
+        {
+          if (--indegree[front] == 0)
+            ready.push(front);
+        }
+      }
+
+      if (draw_order.size() != edges.size())
+      {
+        // This should never happen - because it means there is a cycle in depth-ordering.
+        ASSERT(false);
+        draw_order.resize(edges.size());
+        std::iota(draw_order.begin(), draw_order.end(), 0);
+        std::stable_sort(draw_order.begin(), draw_order.end(), [&](int lhs, int rhs){ return edge_depths[lhs] < edge_depths[rhs]; });
+      }
+
+      static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
+      for (int const edge_index : draw_order)
+      {
+        Edge const& edge = edges[edge_index];
+        cairowindow::Point const from{edge.from_wc + window_center};
+        cairowindow::Point const to{edge.to_wc + window_center};
+
+        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = color::white, .line_width = 3.0})));
+        second_layer->draw(draw_edges.back());
+        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = axis_color[edge.axis]})));
+        second_layer->draw(draw_edges.back());
       }
 
       // Flush all expose events related to the drawing done above.
