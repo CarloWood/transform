@@ -7,6 +7,7 @@
 #include "cairowindow/Plot.h"
 #include "utils/print_using.h"
 #include "utils/AIAlert.h"
+#include "utils/Array.h"
 #include <cmath>
 #include <thread>
 #include "debug.h"
@@ -42,6 +43,10 @@ std::shared_ptr<draw::Slider> create_slider(plot::Plot& fake_plot, boost::intrus
   return draw_slider;
 }
 #endif
+
+// Where to put the center of the tesseract.
+constexpr int window_center_x = 450;
+constexpr int window_center_y = 450;
 
 struct Sliders
 {
@@ -113,6 +118,9 @@ int main()
     // Create a window.
     Window window("hypercube", 1200, 900);
 
+    // The center of the free space (where there aren't sliders).
+    math::Vector<2, double> const window_center{window_center_x, window_center_y};
+
     // Create a new layer with a white background.
     auto background_layer = window.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
 
@@ -129,6 +137,8 @@ int main()
 
     draw::LineStyle tesseract_line_style({.line_width = 1.0});
     draw::LineStyle corner_line_style({.line_color = color::turquoise, .line_width = 1.0});
+    draw::PointStyle point_style({.color_index = 31, .filled_shape = 6 /*diamond*/});
+    draw::LineStyle line_style({.line_color = color::blue, .line_width = 1.0});
 
     Sliders sliders(second_layer, window.geometry());
 
@@ -163,7 +173,7 @@ int main()
       };
       math::Vector<4> offset_uc = offset_value() * hyperplane_normal_uc;
       math::Vector<4> P_uc = center + offset_uc;
-      math::Hyperplane hyperplane(hyperplane_normal_uc, -(P_uc.dot(hyperplane_normal_uc)));
+      math::Hyperplane hyperplane_uc(hyperplane_normal_uc, -(P_uc.dot(hyperplane_normal_uc)));
 
       // Define the universe: the tesseract lives in 4D space.
       using U = math::Universe<Id, 4>;
@@ -171,8 +181,10 @@ int main()
       // Construct a 3D orthonormal basis for the hyperplane.
       math::SubSpace<U, 1> hyperplane_orthogonal_subspace(hyperplane_normal_uc);
       math::Basis<U, 3> hyperplane_basis(hyperplane_orthogonal_subspace);
+      auto const hc_to_uc = hyperplane_basis.to_universe_coordinates();
+      auto const uc_to_hc = hyperplane_basis.to_basis_coordinates();
 
-      Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
+      //Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
 
       math::Vector<3> windowplane_normal_hc{
         std::sin(theta()) * std::cos(phi()),
@@ -182,15 +194,41 @@ int main()
       math::Hyperplane windowplane(windowplane_normal_hc, 0);
 
       // Construct a 2D orthonormal basis for the windowplane.
-//      math::Matrix<3, 4> hc_to_uc = hyperplane_basis.hc_to_uc();
-//      math::SubSpace<U, 2> windowplane_orthogonal_subspace(hyperplane_normal_uc, windowplane_normal_hc * hc_to_uc);
-//      math::Basis<U, 2> windowplane_basis(windowplane_orthogonal_subspace);
+      math::SubSpace<U, 2> windowplane_orthogonal_subspace(hyperplane_normal_uc, windowplane_normal_hc * hc_to_uc);
+      math::Basis<U, 2> windowplane_basis(windowplane_orthogonal_subspace, 0.0025);
+      auto const wc_to_uc = windowplane_basis.to_universe_coordinates();
+      auto const uc_to_wc = windowplane_basis.to_basis_coordinates();
 
+      //Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
+
+      utils::Array<math::Vector<2>, 1 << 4, CornerIndex> projected_corners;
+      auto const hc_to_wc = hc_to_uc * uc_to_wc;
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
-        math::Vector<4> const& corner = tesseract[ci];
-        math::Vector<4> hyperplane_projection = hyperplane.project(corner);
-//... todo: project away another dimension
+        math::Vector<4> const& corner_uc = tesseract[ci] - center;
+        math::Vector<3> hyperplane_projection_hc = hyperplane_uc.project(corner_uc) * uc_to_hc;
+        math::Vector<2> windowplane_projection_wc = windowplane.project(hyperplane_projection_hc) * hc_to_wc;
+        projected_corners[ci] = windowplane_projection_wc;
+      }
+
+      std::vector<std::shared_ptr<draw::Point>> draw_corners;
+      std::vector<std::shared_ptr<draw::Line>> draw_edges;
+      for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
+      {
+        cairowindow::Point const corner{projected_corners[ci].as_point() + window_center};
+        draw_corners.push_back(std::make_shared<draw::Point>(corner, point_style));
+//        second_layer->draw(draw_corners.back());
+
+        static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
+        for (int d = 0; d < 4; ++d)
+        {
+          size_t const bit = math::detail::to_mask(d);
+          CornerIndex const adjacent_ci{ci.get_value() ^ bit};
+
+          cairowindow::Point const adjacent_corner{projected_corners[adjacent_ci].as_point() + window_center};
+          draw_edges.push_back(std::make_shared<draw::Line>(corner, adjacent_corner, line_style({.line_color = axis_color[d]})));
+          second_layer->draw(draw_edges.back());
+        }
       }
 
       // Flush all expose events related to the drawing done above.
