@@ -9,6 +9,7 @@
 #include "utils/print_using.h"
 #include "utils/AIAlert.h"
 #include "utils/Array.h"
+#include <string>
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -144,6 +145,8 @@ int main()
     draw::LineStyle corner_line_style({.line_color = color::turquoise, .line_width = 1.0});
     draw::PointStyle point_style({.color_index = 31, .filled_shape = 6 /*diamond*/});
     draw::LineStyle line_style({.line_color = color::blue, .line_width = 1.0});
+    draw::TextStyle label_style({.position = draw::centered_right_of, .font_size = 15.0, .color = color::lightgray, .offset = 3});
+    draw::TextStyle depth_style({.position = draw::centered_above, .font_size = 12.0, .offset = 1});
 
     Sliders sliders(second_layer, window.geometry());
 
@@ -169,6 +172,7 @@ int main()
       double const theta = theta_slider();
       double const phi = phi_slider();
 
+#if 0
       constexpr double step = 0.5;
       for (double alpha = 0.5; alpha < M_PI; alpha += step)
       {
@@ -180,7 +184,7 @@ int main()
             for (double theta = 1.0; theta < M_PI; theta += step)
               for (double phi = 0.5; phi < 2.0 * M_PI; phi += step)
               {
-                Dout(dc::notice, "alpha = " << alpha << ", beta = " << beta << ", gamma = " << gamma << ", theta = " << theta << ", phi = " << phi);
+#endif
 
       // Suppress immediate updating of the window for each created item, in order to avoid flickering.
       window.set_send_expose_events(false);
@@ -243,6 +247,8 @@ int main()
 
       std::vector<std::shared_ptr<draw::Point>> draw_corners;
       std::vector<std::shared_ptr<draw::Line>> draw_edges;
+      std::vector<std::shared_ptr<draw::Text>> draw_edge_labels;
+      std::vector<std::shared_ptr<draw::Text>> draw_corner_depths;
 
       struct Edge
       {
@@ -264,6 +270,8 @@ int main()
         cairowindow::Point const corner{projected_corners[ci].as_point() + window_center};
         draw_corners.push_back(std::make_shared<draw::Point>(corner, point_style));
         //second_layer->draw(draw_corners.back());
+        std::string depth_text = std::to_string(corner_depths[ci]);
+        draw_corner_depths.push_back(std::make_shared<draw::Text>(depth_text, corner.x(), corner.y(), depth_style));
 
         for (int d = 0; d < 4; ++d)
         {
@@ -282,7 +290,6 @@ int main()
       std::vector<int> indegree(edges.size(), 0);
       auto add_relation = [&](int back, int front)
       {
-        Dout(dc::notice, back << " < " << front);
         graph[back].push_back(front);
         ++indegree[front];
       };
@@ -298,22 +305,7 @@ int main()
 
           if (e1.from == e2.from || e1.from == e2.to || e1.to == e2.from || e1.to == e2.to)
           {
-#if 1
-            // The edges share a corner. Use the other corners to determine the depth.
-            // Get the signed distance of those other corners to the windowplane.
-            double const distance1 = corner_depths[e1.from == e2.from || e1.from == e2.to ? e1.to : e1.from];
-            double const distance2 = corner_depths[e1.from == e2.from || e1.to == e2.from ? e2.to : e2.from];
-            if (distance1 < distance2)
-            {
-              Dout(dc::notice, "!:");
-              add_relation(i1, i2);     // e1 is behind e2.
-            }
-            else
-            {
-              Dout(dc::notice, "!:");
-              add_relation(i2, i1);     // e2 is behind e1.
-            }
-#endif
+            // The edges share a corner.
             continue;
           }
 
@@ -322,17 +314,7 @@ int main()
 
           if (e1.axis == e2.axis)
           {
-#if 0
             // Parallel edges.
-            // We can use the corners to determine the distance (using std::max would offset both
-            // distances with the same amount and does not change the ordering).
-            double const distance1 = std::min(corner_depths[e1.from], corner_depths[e1.to]);
-            double const distance2 = std::min(corner_depths[e2.from], corner_depths[e2.to]);
-            if (distance1 < distance2)
-              add_relation(i1, i2);     // e1 is behind e2.
-            else
-              add_relation(i2, i1);     // e2 is behind e1.
-#endif
             continue;
           }
 
@@ -428,14 +410,25 @@ int main()
         second_layer->draw(draw_edges.back());
         draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = axis_color[edge.axis]})));
         second_layer->draw(draw_edges.back());
+
+        double const mid_x_wc = 0.5 * (edge.from_wc.x() + edge.to_wc.x());
+        double const mid_y_wc = 0.5 * (edge.from_wc.y() + edge.to_wc.y());
+        std::string text = std::to_string(edge_index);
+        draw_edge_labels.push_back(std::make_shared<draw::Text>(text,
+            mid_x_wc + window_center_x, mid_y_wc + window_center_y, label_style));
+        second_layer->draw(draw_edge_labels.back());
       }
+      for (auto&& depth : draw_corner_depths)
+        second_layer->draw(depth);
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
 
+#if 0
               } // next angle
         }
       }
+#endif
 
       // Block until a key is pressed.
       if (!window.handle_input_events())
