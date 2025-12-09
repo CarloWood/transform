@@ -51,10 +51,13 @@ inline std::shared_ptr<cwin::draw::Line> display_line(
   if (intersections.empty())
     return {};
 
-  double x1 = intersections[0][0];
-  double y1 = intersections[0][1];
-  double x2 = intersections[1][0];
-  double y2 = intersections[1][1];
+  constexpr math::Hyperblock<2>::IntersectionPointIndex first{size_t{0}};
+  constexpr math::Hyperblock<2>::IntersectionPointIndex second{size_t{1}};
+
+  double x1 = intersections[first][0];
+  double y1 = intersections[first][1];
+  double x2 = intersections[second][0];
+  double y2 = intersections[second][1];
 
   Dout(dc::notice, "Calling draw(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ", ...)");
   std::shared_ptr<cwin::draw::Line> result = std::make_shared<cwin::draw::Line>(x1, y1, x2, y2, line_style);
@@ -479,11 +482,14 @@ std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, math::Hype
 
   ASSERT(intersections_cs.size() == 2);
 
+  constexpr math::Hyperblock<2>::IntersectionPointIndex first{size_t{0}};
+  constexpr math::Hyperblock<2>::IntersectionPointIndex second{size_t{1}};
+
   // Return the two points where the line_cs intersects with the rectangle_cs.
   return {
     2, {
-      Point<cs>(intersections_cs[0][0], intersections_cs[0][1]),
-      Point<cs>(intersections_cs[1][0], intersections_cs[1][1])
+      Point<cs>(intersections_cs[first][0], intersections_cs[first][1]),
+      Point<cs>(intersections_cs[second][0], intersections_cs[second][1])
     }
   };
 }
@@ -669,10 +675,13 @@ void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line
   if (intersections.empty())
     return;
 
-  double x1 = intersections[0][0];
-  double y1 = intersections[0][1];
-  double x2 = intersections[1][0];
-  double y2 = intersections[1][1];
+  constexpr math::Hyperblock<2>::IntersectionPointIndex first{size_t{0}};
+  constexpr math::Hyperblock<2>::IntersectionPointIndex second{size_t{1}};
+
+  double x1 = intersections[first][0];
+  double y1 = intersections[first][1];
+  double x2 = intersections[second][0];
+  double y2 = intersections[second][1];
 
   plot_line.draw_object_ = std::make_shared<draw::Line>(
       convert_x(x1), convert_y(y1), convert_x(x2), convert_y(y2),
