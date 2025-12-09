@@ -200,6 +200,7 @@ int main()
         std::sin(alpha) * std::sin(beta) * std::cos(gamma),
         std::sin(alpha) * std::sin(beta) * std::sin(gamma)
       };
+      Dout(dc::notice, "hyperplane_normal_uc = " << hyperplane_normal_uc);
       math::Vector<4> offset_uc = offset_value * hyperplane_normal_uc;
       math::Vector<4> P_uc = center + offset_uc;
       math::Hyperplane hyperplane_uc(hyperplane_normal_uc, -(P_uc.dot(hyperplane_normal_uc)));
@@ -215,20 +216,25 @@ int main()
 
       //Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
 
+      Dout(dc::notice, "alpha = " << alpha << ", beta = " << beta << ", gamma = " << gamma << ", theta = " << theta << ", phi = " << phi);
       math::Vector<3> windowplane_normal_hc{
         std::sin(theta) * std::cos(phi),
         std::sin(theta) * std::sin(phi),
         std::cos(theta)
       };
+      Dout(dc::notice, "windowplane_normal_hc = " << windowplane_normal_hc);
       math::Hyperplane windowplane(windowplane_normal_hc, 0);
 
       // Construct a 2D orthonormal basis for the windowplane.
-      math::SubSpace<U, 2> windowplane_orthogonal_subspace(hyperplane_normal_uc, windowplane_normal_hc * hc_to_uc);
-      math::Basis<U, 2> windowplane_basis(windowplane_orthogonal_subspace, 0.0025);
+      math::SubSpace<U, 2> windowplane_orthogonal_subspace(windowplane_normal_hc * hc_to_uc, hyperplane_normal_uc);
+      // Define a path delta direction that works at the very least near the pole θ=π.
+      math::Vector<3> path_delta_hc(-std::cos(phi), -std::sin(phi), 0);      // Use ∂/∂θ (windowplane_normal_hc) at θ=π.
+      math::Basis<U, 2> windowplane_basis(windowplane_orthogonal_subspace, 0.0025, {path_delta_hc * hc_to_uc});
       auto const wc_to_uc = windowplane_basis.to_universe_coordinates();
       auto const uc_to_wc = windowplane_basis.to_basis_coordinates();
 
-      //Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
+      Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
+      Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
 
       utils::Array<math::Vector<3>, 1 << 4, CornerIndex> hyperplane_corners;
       utils::Array<double, 1 << 4, CornerIndex> corner_depths;
@@ -244,6 +250,23 @@ int main()
         corner_depths[ci] = depth;
         projected_corners[ci] = windowplane_projection_wc;
       }
+
+      Dout(dc::notice|continued_cf, "hyperplane_corners = {");
+      char const* sep = "";
+      for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
+      {
+        Dout(dc::continued, sep << hyperplane_corners[ci]);
+        sep = ", ";
+      }
+      Dout(dc::finish, "}");
+      Dout(dc::notice|continued_cf, "projected_corners = {");
+      sep = "";
+      for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
+      {
+        Dout(dc::continued, sep << projected_corners[ci]);
+        sep = ", ";
+      }
+      Dout(dc::finish, "}");
 
       std::vector<std::shared_ptr<draw::Point>> draw_corners;
       std::vector<std::shared_ptr<draw::Line>> draw_edges;
