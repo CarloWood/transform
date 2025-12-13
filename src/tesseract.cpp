@@ -11,6 +11,7 @@
 #include "utils/Array.h"
 #include <string>
 #include <array>
+#include <map>
 #include <set>
 #include <algorithm>
 #include <cmath>
@@ -154,7 +155,9 @@ int main()
     Sliders sliders(second_layer, window.geometry());
 
     // A given orientation (copied from debug output).
-    double alpha = 2.03065, beta = 0.619212, gamma = 0.400667, offset = -0.0666667, theta = 1.41144, phi = 2.53149;
+//    double alpha = 2.03065, beta = 0.619212, gamma = 0.400667, offset = -0.0666667, theta = 1.41144, phi = 2.53149;
+    // Latest assert:
+    double alpha = 2.03065, beta = 0.619212, gamma = 1.51161, offset = -0.37971, theta = 1.41144, phi = 2.53149;
 
     sliders.first_row("Tesseract pos. rel. to hyperplane");
     auto alpha_slider  = sliders.add("alpha", alpha, 0.0, M_PI);
@@ -167,7 +170,8 @@ int main()
     auto phi_slider    = sliders.add("phi", phi, 0.0, 2.0 * M_PI);      // Angle relative to positive x-axis.
 
     math::Vector<4> const center(0.5, 0.5, 0.5, 0.5);
-    math::Hyperblock<4> const tesseract({0, 0, 0, 0}, {1, 1, 1, 1});
+    using tesseract_type = math::Hyperblock<4>;
+    tesseract_type const tesseract({0, 0, 0, 0}, {1, 1, 1, 1});
 
     for (;;)
     {
@@ -242,6 +246,7 @@ int main()
       Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
       Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
 
+      using CornerIndex = tesseract_type::CornerIndex;
       utils::Array<math::Vector<3>, 1 << 4, CornerIndex> hyperplane_corners;
       utils::Array<double, 1 << 4, CornerIndex> corner_depths;
       utils::Array<math::Vector<2>, 1 << 4, CornerIndex> projected_corners;
@@ -249,6 +254,7 @@ int main()
       utils::Vector<math::Vector<4>, IntersectionPointIndex> const hyperplane_intersections_uc = tesseract.intersection_points(hyperplane_uc);
       utils::Vector<math::Vector<2>, IntersectionPointIndex> intersection_points_wc;
       intersection_points_wc.reserve(hyperplane_intersections_uc.size());
+      std::map<std::pair<CornerIndex, CornerIndex>, IntersectionPointIndex> edge_ip_index;
       auto const hc_to_wc = hc_to_uc * uc_to_wc;
 
       auto project_uc_to_wc = [&](math::Vector<4> const& point_uc, auto& depth_out) -> math::Vector<2>
@@ -262,7 +268,7 @@ int main()
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
 #if 0
-        math::Vector<4> const& corner_uc = tesseract[ci] - center;
+        math::Vector<4> const corner_uc = tesseract[ci] - center;
         math::Vector<3> hyperplane_projection_hc = hyperplane_uc.project(corner_uc) * uc_to_hc;
         double const depth = windowplane.signed_distance(hyperplane_projection_hc);
         math::Vector<2> windowplane_projection_wc = windowplane.project(hyperplane_projection_hc) * hc_to_wc;
@@ -284,7 +290,49 @@ int main()
         math::Vector<3> ip_hc = hyperplane_uc.project(ip_centered) * uc_to_hc;
         math::Vector<2> ip_wc = windowplane.project(ip_hc) * hc_to_wc;
 #endif
-        intersection_points_wc.push_back(project_uc_to_wc(ip_uc), intersection_point_depths[ip_index]);
+        intersection_points_wc.push_back(project_uc_to_wc(ip_uc, intersection_point_depths[ip_index]));
+      }
+
+      // Build a mapping from tesseract edges to intersection point indices.
+      auto make_edge_key = [](CornerIndex a, CornerIndex b)
+      {
+        if (a.get_value() > b.get_value())
+          std::swap(a, b);
+        return std::make_pair(a, b);
+      };
+      constexpr double edge_eps = 1e-10;
+      for (IntersectionPointIndex ip_index = hyperplane_intersections_uc.ibegin(); ip_index != hyperplane_intersections_uc.iend(); ++ip_index)
+      {
+        math::Vector<4> const& ip_uc = hyperplane_intersections_uc[ip_index];
+        // Scan all edges to find which one this intersection belongs to.
+        for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
+        {
+          for (int d = 0; d < 4; ++d)
+          {
+            size_t const bit = math::detail::to_mask(d);
+            CornerIndex const adj{ci.get_value() ^ bit};
+            if (ci.get_value() > adj.get_value())
+              continue;   // Only handle each edge once.
+
+            math::Vector<4> const& A = tesseract[ci];
+            math::Vector<4> const& B = tesseract[adj];
+            math::Vector<4> const AB = B - A;
+            math::Vector<4> const AI = ip_uc - A;
+
+            double const denom = AB.norm_squared();
+            if (denom == 0.0)
+              continue;
+            double const t = AI.dot(AB) / denom;
+            if (t < -edge_eps || t > 1.0 + edge_eps)
+              continue;
+
+            math::Vector<4> const proj = A + t * AB;
+            if ((proj - ip_uc).norm() > 1e-8)
+              continue;
+
+            edge_ip_index.emplace(make_edge_key(ci, adj), ip_index);
+          }
+        }
       }
 
       Dout(dc::notice|continued_cf, "hyperplane_corners = {");
@@ -320,6 +368,7 @@ int main()
         double from_depth;
         double to_depth;
         int axis;
+        IntersectionPointIndex ip_index;
       };
 
       std::vector<Edge> edges;
@@ -343,8 +392,13 @@ int main()
           if (ci.get_value() > adjacent_ci.get_value())
             continue;   // Only add each edge once.
 
+          IntersectionPointIndex ip_idx;
+          auto ip_it = edge_ip_index.find(make_edge_key(ci, adjacent_ci));
+          if (ip_it != edge_ip_index.end())
+            ip_idx = ip_it->second;
+
           edges.push_back({ci, adjacent_ci, projected_corners[ci].as_point(), projected_corners[adjacent_ci].as_point(),
-              hyperplane_corners[ci], hyperplane_corners[adjacent_ci], corner_depths[ci], corner_depths[adjacent_ci], d});
+              hyperplane_corners[ci], hyperplane_corners[adjacent_ci], corner_depths[ci], corner_depths[adjacent_ci], d, ip_idx});
         }
       }
 
@@ -368,21 +422,19 @@ int main()
               std::pair{c0, c1}, std::pair{c1, c3}, std::pair{c3, c2}, std::pair{c2, c0}
             };
 
-            std::vector<math::Vector<4>> face_intersections_uc;
-            face_intersections_uc.reserve(2);
+            std::vector<IntersectionPointIndex> face_intersections;
+            face_intersections.reserve(2);
             for (auto const& [a, b] : face_edges)
             {
-              math::Sign side_a = hyperplane_uc.side(tesseract[a]);
-              math::Sign side_b = hyperplane_uc.side(tesseract[b]);
-              if (side_a == side_b)
-                continue;
-              face_intersections_uc.push_back(hyperplane_uc.intersection(tesseract[a], tesseract[b]));
+              auto it = edge_ip_index.find(make_edge_key(a, b));
+              if (it != edge_ip_index.end())
+                face_intersections.push_back(it->second);
             }
 
-            if (face_intersections_uc.size() == 2)
+            if (face_intersections.size() == 2)
             {
-              math::Vector<2> p0_wc = project_uc_to_wc(face_intersections_uc[0]); // intersection_points_wc[ip_index0]
-              math::Vector<2> p1_wc = project_uc_to_wc(face_intersections_uc[1]); // intersection_points_wc[ip_index1]
+              math::Vector<2> p0_wc = intersection_points_wc[face_intersections[0]];
+              math::Vector<2> p1_wc = intersection_points_wc[face_intersections[1]];
               face_segments_wc.emplace_back(p0_wc, p1_wc);
             }
           }
