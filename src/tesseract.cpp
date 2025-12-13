@@ -246,7 +246,7 @@ int main()
       Dout(dc::notice, "hyperplane_basis = " << hyperplane_basis);
       Dout(dc::notice, "windowplane_basis = " << windowplane_basis);
 
-      using CornerIndex = tesseract_type::CornerIndex;
+      using CornerIndex = math::CornerIndex<4>;
       utils::Array<math::Vector<3>, 1 << 4, CornerIndex> hyperplane_corners;
       utils::Array<double, 1 << 4, CornerIndex> corner_depths;
       utils::Array<math::Vector<2>, 1 << 4, CornerIndex> projected_corners;
