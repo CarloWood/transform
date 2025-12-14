@@ -488,8 +488,8 @@ std::tuple<int, std::array<Point<cs>, 2>> intersect(Line<cs> line_cs, math::Hype
   // Return the two points where the line_cs intersects with the rectangle_cs.
   return {
     2, {
-      Point<cs>(intersections_cs[first][0], intersections_cs[first][1]),
-      Point<cs>(intersections_cs[second][0], intersections_cs[second][1])
+      Point<cs>(intersections_cs[first].coordinate(0), intersections_cs[first].coordinate(1)),
+      Point<cs>(intersections_cs[second].coordinate(0), intersections_cs[second].coordinate(1))
     }
   };
 }
