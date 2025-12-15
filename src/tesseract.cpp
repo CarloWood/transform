@@ -258,7 +258,7 @@ int main()
       // A (2D) windowplane point / depth pair.
       struct PointDepth
       {
-        math::Vector<2> point_wc;       // Some projection of a point in the hyperplane onto the windowplane.
+        math::Point<2> point_wc;        // Some projection of a point in the hyperplane onto the windowplane.
         double depth;                   // The signed distance of the hyperplane point to the windowplane; this is used for depth ordering.
       };
 
@@ -267,7 +267,7 @@ int main()
       auto project_uc_to_wc = [&](math::Vector<4> const& point_uc) -> PointDepth
       {
         math::Vector<3> point_hc = hyperplane_uc.project(point_uc - center) * uc_to_hc;
-        return {windowplane.project(point_hc) * hc_to_wc, windowplane.signed_distance(point_hc)};
+        return {(windowplane.project(point_hc) * hc_to_wc).as_point(), windowplane.signed_distance(point_hc)};
       };
 
       // Create a mapping from corner index (ci) to the projected corner in windowplane coordinates (wc) and the depth of that corner.
@@ -278,24 +278,15 @@ int main()
       // Get all intersection points, between tesseract edges and the hyperplane, in Universe Coordinates (uc).
       using intersection_points_type = math::Hyperblock<4>::IntersectionPoints; // A Vector of IntersectionPoint<n, T> point/index pairs.
       intersection_points_type const hyperplane_intersections_uc = tesseract.intersection_points(hyperplane_uc);
-      size_t const number_of_interception_points = hyperplane_intersections_uc.size();
+      size_t const number_of_intersection_points = hyperplane_intersections_uc.size();
       // The index type used for intersection points.
       using IntersectionPointIndex = intersection_points_type::index_type;      // ii ; there are between 4 and 12 intersection points depending on the orientation of the hyperplane.
-      Dout(dc::notice, "There are " << number_of_interception_points << " intersection points.");
+      Dout(dc::notice, "There are " << number_of_intersection_points << " intersection points.");
 
       // Calculate the depth and projections of the intersection points onto the windowplane.
-      utils::Vector<PointDepth, IntersectionPointIndex> intersections(number_of_interception_points);
+      utils::Vector<PointDepth, IntersectionPointIndex> intersections(number_of_intersection_points);
       for (IntersectionPointIndex ii = intersections.ibegin(); ii != intersections.iend(); ++ii)
         intersections[ii] = project_uc_to_wc(hyperplane_intersections_uc[ii]);
-
-      auto edge_endpoints = [](EdgeIndex edge) {
-        math::kFace<4, 1> kedge = edge.as_kface();
-        CornerIndex zero = kedge.zero_corner;
-        auto axis_bit = *kedge.k_axes.begin();           // single bit set
-        auto mask = axis_bit();
-        CornerIndex one{zero.get_value() | mask};
-        return std::pair{zero, one};
-      };
 
       auto edge_axis = [](EdgeIndex edge) -> int {
         math::kFace<4, 1> kedge = edge.as_kface();
@@ -521,22 +512,24 @@ int main()
       }
 
       static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
-      for (int const edge_index : draw_order)
+      std::vector<std::shared_ptr<draw::Line>> draw_edges;
+      std::vector<std::shared_ptr<draw::Text>> draw_edge_labels;
+//      for (EdgeIndex const ei : draw_order)
+      for (EdgeIndex ei = edges.ibegin(); ei != edges.iend(); ++ei)        //FIXME: temporarily draw in "arbitrary" order.
       {
-        Edge const& edge = edges[edge_index];
-        cairowindow::Point const from{edge.from_wc + window_center};
-        cairowindow::Point const to{edge.to_wc + window_center};
+        Edge const& edge = edges[ei];
+        cairowindow::Point const from{edge.pd_e0.point_wc + window_center};
+        cairowindow::Point const to{edge.pd_e1.point_wc + window_center};
 
         draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = color::white, .line_width = 3.0})));
         second_layer->draw(draw_edges.back());
-        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = axis_color[edge.axis]})));
+        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = axis_color[edge.axis()]})));
         second_layer->draw(draw_edges.back());
 
-        double const mid_x_wc = 0.5 * (edge.from_wc.x() + edge.to_wc.x());
-        double const mid_y_wc = 0.5 * (edge.from_wc.y() + edge.to_wc.y());
-        std::string text = std::to_string(edge_index);
-        draw_edge_labels.push_back(std::make_shared<draw::Text>(text,
-            mid_x_wc + window_center_x, mid_y_wc + window_center_y, label_style));
+        double const mid_x_wc = 0.5 * (edge.pd_e0.point_wc.x() + edge.pd_e1.point_wc.x());
+        double const mid_y_wc = 0.5 * (edge.pd_e0.point_wc.y() + edge.pd_e1.point_wc.y());
+        std::string text = std::to_string(ei.get_value());
+        draw_edge_labels.push_back(std::make_shared<draw::Text>(text, mid_x_wc + window_center_x, mid_y_wc + window_center_y, label_style));
         second_layer->draw(draw_edge_labels.back());
       }
 
@@ -558,10 +551,6 @@ int main()
         draw_segments.push_back(std::make_shared<draw::Line>(a, b, segment_line_style));
         second_layer->draw(draw_segments.back());
       }
-#if 0
-      for (auto&& depth : draw_corner_depths)
-        second_layer->draw(depth);
-#endif
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
