@@ -112,6 +112,38 @@ enum Id {
   universe_id
 };
 
+// A (2D) windowplane point / depth pair.
+struct PointDepth
+{
+  math::Point<2> point_wc;        // Some projection of a point in the hyperplane onto the windowplane.
+  double depth;                   // The signed distance of the hyperplane point to the windowplane; this is used for depth ordering.
+};
+
+struct LineSegment
+{
+  using EdgeIndex = math::EdgeIndex<4>;
+  using FaceIndex = math::kFaceIndex<4, 2>;
+
+  std::array<PointDepth, 2> pd;   // A line segment, with pd[0].depth <= pd[1].depth.
+  bool is_edge;                   // True if this is a tesseract edge, false if this is 2-face segment.
+  union Info
+  {
+    EdgeIndex ei;
+    FaceIndex fi;
+
+    Info(EdgeIndex ei0) : ei(ei0) { }
+    Info(FaceIndex fi0) : fi(fi0) { }
+  } idx;
+
+  template<typename Index>
+  requires (std::same_as<Index, EdgeIndex> || std::same_as<Index, FaceIndex>)
+  LineSegment(Index index, PointDepth const& pd0, PointDepth pd1) : pd({pd0, pd1}), is_edge(std::same_as<Index, EdgeIndex>), idx(index)
+  {
+    if (pd[1].depth < pd[0].depth)
+      std::swap(pd[0], pd[1]);
+  }
+};
+
 int main()
 {
   Debug(NAMESPACE_DEBUG::init());
@@ -255,13 +287,6 @@ int main()
 
       auto const hc_to_wc = hc_to_uc * uc_to_wc;
 
-      // A (2D) windowplane point / depth pair.
-      struct PointDepth
-      {
-        math::Point<2> point_wc;        // Some projection of a point in the hyperplane onto the windowplane.
-        double depth;                   // The signed distance of the hyperplane point to the windowplane; this is used for depth ordering.
-      };
-
       // Lambda to project a point in Universe Coordinates to Window Coordinates and extract
       // the signed distance between the projection on the hyperplane and the windowplane.
       auto project_uc_to_wc = [&](math::Vector<4> const& point_uc) -> PointDepth
@@ -271,9 +296,9 @@ int main()
       };
 
       // Create a mapping from corner index (ci) to the projected corner in windowplane coordinates (wc) and the depth of that corner.
-      utils::Array<PointDepth, CornerIndex::size, CornerIndex> corners;
+      utils::Array<PointDepth, CornerIndex::size, CornerIndex> corners_pd;
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
-        corners[ci] = project_uc_to_wc(tesseract[ci]);
+        corners_pd[ci] = project_uc_to_wc(tesseract[ci]);
 
       // Get all intersection points, between tesseract edges and the hyperplane, in Universe Coordinates (uc).
       using intersection_points_type = math::Hyperblock<4>::IntersectionPoints; // A Vector of IntersectionPoint<n, T> point/index pairs.
@@ -298,7 +323,7 @@ int main()
       char const* sep = "";
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
-        Dout(dc::continued, sep << corners[ci].point_wc << "@" << corners[ci].depth);
+        Dout(dc::continued, sep << corners_pd[ci].point_wc << "@" << corners_pd[ci].depth);
         sep = ", ";
       }
       Dout(dc::finish, "}");
@@ -311,96 +336,65 @@ int main()
       std::vector<std::shared_ptr<draw::Text>> draw_corner_depths;
       for (CornerIndex ci = tesseract.ibegin(); ci != tesseract.iend(); ++ci)
       {
-        cairowindow::Point const corner{corners[ci].point_wc.as_point() + window_center};
+        cairowindow::Point const corner{corners_pd[ci].point_wc.as_point() + window_center};
         draw_corners.push_back(std::make_shared<draw::Point>(corner, point_style));
         second_layer->draw(draw_corners.back());
         // Show their depth.
-        std::string depth_text = std::to_string(corners[ci].depth);
+        std::string depth_text = std::to_string(corners_pd[ci].depth);
         draw_corner_depths.push_back(std::make_shared<draw::Text>(depth_text, corner.x(), corner.y(), depth_style));
         second_layer->draw(draw_corner_depths.back());
       }
 #endif
 
-      // Build a graph of the 2-face line-segments between intersection points.
+      // Map edges to intersection points, if they have any.
+      utils::Array<IntersectionPointIndex, EdgeIndex::size, EdgeIndex> ei_to_ii;
+      for (EdgeIndex ei = ei_to_ii.ibegin(); ei != ei_to_ii.iend(); ++ei)
+        for (IntersectionPointIndex ii = hyperplane_intersections_uc.ibegin(); ii != hyperplane_intersections_uc.iend(); ++ii)
+          if (hyperplane_intersections_uc[ii].edge_index() == ei)
+          {
+            ei_to_ii[ei] = ii;
+            break;
+          }
 
-      struct Edge
+      using LineSegmentIndex = utils::VectorIndex<LineSegment>;
+      utils::Vector<LineSegment, LineSegmentIndex> line_segments_pd;
+
+      // For each edge of the tesseract, find the two corners add store the edge as a LineSegment.
+      for (EdgeIndex ei = ei_to_ii.ibegin(); ei != ei_to_ii.iend(); ++ei)
       {
-        CornerIndex from;
-        CornerIndex to;
-        math::Point<2> from_wc;
-        math::Point<2> to_wc;
-        math::Vector<3> from_hc;
-        math::Vector<3> to_hc;
-        double from_depth;
-        double to_depth;
-        int axis;
-        IntersectionPointIndex ip_index;
-      };
+        std::array<CornerIndex, 2> edge_ci;
+        int count = 0;
+        for (CornerIndex ci : ei.facet_indexes())
+          edge_ci[count++] = ci;
+        line_segments_pd.emplace_back(ei, corners_pd[edge_ci[0]], corners_pd[edge_ci[1]]);
+      }
 
-      utils::Vector<Edge, IntersectionPointIndex> edges;
-
+      // For each 2-face of the tesseract, find the two intersection points (if any) and store the segment as a LineSegment.
+      for (FaceIndex fi = FaceIndex::ibegin(); fi != FaceIndex::iend(); ++fi)
       {
-        for (IntersectionPointIndex ii = intersections.ibegin(); ii != intersections.iend(); ++ii)
+        std::array<IntersectionPointIndex, 2> face_ii;
+        int count = 0;
+        for (EdgeIndex ei : fi.facet_indexes())
         {
-          EdgeIndex const ei = hyperplane_intersections_uc[ii].edge_index();
-
-          //auto [from_ci, to_ci] = edge_endpoints(edge_index);
-          //int const axis = edge_axis(ip_edge_index);
-
-          edges.push_back({
-              ii, ei,
-#if 0
-              from_ci, to_ci,
-              corners[from_ci], corners[to_ci],
-              axis
-#endif
-              });
+          IntersectionPointIndex ii = ei_to_ii[ei];
+          if (!ii.undefined())
+            face_ii[count++] = ii;
         }
+        ASSERT(count == 0 || count == 2);
+        if (count == 2)
+          line_segments_pd.emplace_back(fi, intersections[face_ii[0]], intersections[face_ii[1]]);
       }
 
 //I AM HERE WITH REVIEWING
-      // For each 2-face of the tesseract, find the two intersection points (if any) and store the segment in window coordinates.
-      for (int d1 = 0; d1 < 4; ++d1)
-      {
-        for (int d2 = d1 + 1; d2 < 4; ++d2)
-        {
-          for (size_t base = 0; base < size_t{1 << 4}; ++base)
-          {
-            // Only consider each face once: base must have zeros in the varying dimensions.
-            if ((base & math::detail::to_mask(d1)) || (base & math::detail::to_mask(d2)))
-              continue;
 
-            CornerIndex c0{base};
-            CornerIndex c1{base | math::detail::to_mask(d1)};
-            CornerIndex c2{base | math::detail::to_mask(d2)};
-            CornerIndex c3{base | math::detail::to_mask(d1) | math::detail::to_mask(d2)};
+      // Build a depth-ordering graph over all line segments (edges and 2-face segments).
+      // This graph is supposed to be a Directed A-cyclic Grap (DAG) with LineSegment's as nodes and edges
+      // that represent back->front relationship (back having a larger depth).
+      utils::Vector<std::vector<LineSegmentIndex>, LineSegmentIndex> graph(line_segments_pd.size());    // The edges that point out of node `LineSegmentIndex`.
 
-            std::array<std::pair<CornerIndex, CornerIndex>, 4> face_edges{
-              std::pair{c0, c1}, std::pair{c1, c3}, std::pair{c3, c2}, std::pair{c2, c0}
-            };
-
-            std::vector<IntersectionPointIndex> face_intersections;
-            face_intersections.reserve(2);
-            for (auto const& [a, b] : face_edges)
-            {
-              auto it = edge_ip_index.find(make_edge_key(a, b));
-              if (it != edge_ip_index.end())
-                face_intersections.push_back(it->second);
-            }
-
-            if (face_intersections.size() == 2)
-            {
-              math::Vector<2> p0_wc = intersection_points_wc[face_intersections[0]];
-              math::Vector<2> p1_wc = intersection_points_wc[face_intersections[1]];
-              face_segments_wc.emplace_back(p0_wc, p1_wc);
-            }
-          }
-        }
-      }
-
-      std::vector<std::vector<int>> graph(edges.size());
-      std::vector<int> indegree(edges.size(), 0);
-      auto add_relation = [&](int back, int front)
+      // Keep a record of the number of incoming edges for each node.
+      utils::Vector<int, LineSegmentIndex> indegree(line_segments_pd.size(), 0);                        // The number of edges that point into node `LineSegmentIndex`.
+      auto add_relation = [&](LineSegmentIndex back, LineSegmentIndex front)
       {
         graph[back].push_back(front);
         ++indegree[front];
@@ -408,65 +402,54 @@ int main()
 
       constexpr double parallel_epsilon = 1e-12;
       constexpr double intersection_epsilon = 1e-9;
-      for (int i1 = 0; i1 < static_cast<int>(edges.size()) - 1; ++i1)
+      for (LineSegmentIndex i0 = line_segments_pd.ibegin(); i0 != line_segments_pd.iend(); ++i0)
       {
-        for (int i2 = i1 + 1; i2 < static_cast<int>(edges.size()); ++i2)
+        LineSegment const& segment0 = line_segments_pd[i0];
+        math::Point<2> const& p00 = segment0.pd[0].point_wc;    // The point of segment0 (in window coordinates) with the smallest depth,
+        math::Point<2> const& p01 = segment0.pd[1].point_wc;    // and the largest depth.
+        math::Direction<2> const d0(p00, p01);
+        math::Line<2> const line0(p00, d0);
+
+        for (LineSegmentIndex i1 = i0 + 1; i1 != line_segments_pd.iend(); ++i1)
         {
-          Edge const& e1 = edges[i1];
-          Edge const& e2 = edges[i2];
+          LineSegment const& segment1 = line_segments_pd[i1];
+          math::Point<2> const& p10 = segment1.pd[0].point_wc;  // The point of segment1 (in window coordinates) with the smallest depth,
+          math::Point<2> const& p11 = segment1.pd[1].point_wc;  // and the largest depth.
+          math::Direction<2> const d1(p10, p11);
+          math::Line<2> const line1(p10, d1);
 
-          if (e1.from == e2.from || e1.from == e2.to || e1.to == e2.from || e1.to == e2.to)
-          {
-            // The edges share a corner.
+          // Skip parallel segments (in windowplane).
+          if (std::abs(d0.dot(d1.normal())) < parallel_epsilon)
             continue;
-          }
 
-          math::Vector<2> const segment1(e1.from_wc, e1.to_wc);
-          math::Vector<2> const segment2(e2.from_wc, e2.to_wc);
+          // The point where the two line segments cross each other in the window plane.
+          math::Point<2> const pc = line0.intersection_with(line1);
 
-          if (e1.axis == e2.axis)
-          {
-            // Parallel edges.
-            continue;
-          }
+          math::Vector<2> const p00_pc(p00, pc);
+          math::Vector<2> const p10_pc(p10, pc);
 
-          if (std::abs(segment1.cross(segment2)) < parallel_epsilon)
-            continue;   // Parallel in the windowplane.
+          double const lambda0 = p00_pc.dot(d0);
+          double const lambda1 = p10_pc.dot(d1);
 
-          math::Line<2> const line1(e1.from_wc, math::Direction<2>(e1.from_wc, e1.to_wc));
-          math::Line<2> const line2(e2.from_wc, math::Direction<2>(e2.from_wc, e2.to_wc));
-          math::Point<2> const intersection = line1.intersection_with(line2);
+          if (lambda0 <= intersection_epsilon || lambda0 >= 1.0 - intersection_epsilon ||
+              lambda1 <= intersection_epsilon || lambda1 >= 1.0 - intersection_epsilon)
+            continue;   // Intersection lies outside the line segment (or too close to an endpoint).
 
-          math::Vector<2> const from_start1(e1.from_wc, intersection);
-          math::Vector<2> const from_start2(e2.from_wc, intersection);
+          // Approximate depth at the intersection point by linear interpolation of endpoint depths.
+          double const depth1 = (1.0 - lambda0) * segment0.pd[0].depth + lambda0 * segment0.pd[1].depth;
+          double const depth2 = (1.0 - lambda1) * segment1.pd[0].depth + lambda1 * segment1.pd[1].depth;
 
-          double const lambda1 = from_start1.dot(segment1) / segment1.norm_squared();
-          double const lambda2 = from_start2.dot(segment2) / segment2.norm_squared();
-
-          if (lambda1 <= intersection_epsilon || lambda1 >= 1.0 - intersection_epsilon ||
-              lambda2 <= intersection_epsilon || lambda2 >= 1.0 - intersection_epsilon)
-            continue;   // Intersection lies outside the edge segment (or too close to a corner).
-
-          math::Vector<3> const e1_segment = e1.to_hc - e1.from_hc;
-          math::Vector<3> const e2_segment = e2.to_hc - e2.from_hc;
-
-          math::Vector<3> const intersection1_hc = e1.from_hc + lambda1 * e1_segment;
-          math::Vector<3> const intersection2_hc = e2.from_hc + lambda2 * e2_segment;
-
-          double const distance1 = windowplane.signed_distance(intersection1_hc);
-          double const distance2 = windowplane.signed_distance(intersection2_hc);
-
-          if (std::abs(distance1 - distance2) < parallel_epsilon)
+          if (std::abs(depth1 - depth2) < parallel_epsilon)
           {
             // Effectively the same depth; we could use the signed distance of the project
-            // from 4D to the hyperplace, but this never happens anyway in reality.
+            // from 4D to the hyperplane, but this never happens anyway in reality.
             continue;
           }
 
-          if (distance1 < distance2)
-            add_relation(i1, i2);     // e1 is behind e2.
+          if (depth1 < depth2)
+            add_relation(i0, i1);     // segment0 is behind segment1.
           else
-            add_relation(i2, i1);     // e2 is behind e1.
+            add_relation(i1, i0);     // segment1 is behind segment0.
         }
       }
 
