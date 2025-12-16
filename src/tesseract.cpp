@@ -187,7 +187,7 @@ int main()
     Sliders sliders(second_layer, window.geometry());
 
     // A given orientation (copied from debug output).
-    double alpha = 2.03065, beta = 0.619212, gamma = 0.400667, offset = -0.0666667, theta = 1.41144, phi = 2.53149;
+    double alpha = 2.2583, beta = 0.619212, gamma = 0.400667, offset = -0.24058, theta = 1.51161, phi = 0.327818;
     // Latest assert:
 //    double alpha = 2.03065, beta = 0.619212, gamma = 1.51161, offset = -0.37971, theta = 1.41144, phi = 2.53149;
 
@@ -385,11 +385,9 @@ int main()
           line_segments_pd.emplace_back(fi, intersections[face_ii[0]], intersections[face_ii[1]]);
       }
 
-//I AM HERE WITH REVIEWING
-
       // Build a depth-ordering graph over all line segments (edges and 2-face segments).
       // This graph is supposed to be a Directed A-cyclic Grap (DAG) with LineSegment's as nodes and edges
-      // that represent back->front relationship (back having a larger depth).
+      // that represent back->front relationships (back having a larger depth).
       utils::Vector<std::vector<LineSegmentIndex>, LineSegmentIndex> graph(line_segments_pd.size());    // The edges that point out of node `LineSegmentIndex`.
 
       // Keep a record of the number of incoming edges for each node.
@@ -407,46 +405,46 @@ int main()
         LineSegment const& segment0 = line_segments_pd[i0];
         math::Point<2> const& p00 = segment0.pd[0].point_wc;    // The point of segment0 (in window coordinates) with the smallest depth,
         math::Point<2> const& p01 = segment0.pd[1].point_wc;    // and the largest depth.
-        math::Direction<2> const d0(p00, p01);
-        math::Line<2> const line0(p00, d0);
+        math::Vector<2> const p00_p01(p00, p01);                // The difference p01 - p00.
+        math::Line<2> const line0(p00, p00_p01.direction());    // Line equation for the line through the segment.
 
         for (LineSegmentIndex i1 = i0 + 1; i1 != line_segments_pd.iend(); ++i1)
         {
           LineSegment const& segment1 = line_segments_pd[i1];
           math::Point<2> const& p10 = segment1.pd[0].point_wc;  // The point of segment1 (in window coordinates) with the smallest depth,
           math::Point<2> const& p11 = segment1.pd[1].point_wc;  // and the largest depth.
-          math::Direction<2> const d1(p10, p11);
-          math::Line<2> const line1(p10, d1);
+          math::Vector<2> const p10_p11(p10, p11);              // The difference p11 - p10.
+          math::Line<2> const line1(p10, p10_p11.direction());  // Line equation for the line through the segment.
 
           // Skip parallel segments (in windowplane).
-          if (std::abs(d0.dot(d1.normal())) < parallel_epsilon)
+          if (std::abs(line0.direction().dot(line1.direction().normal())) < parallel_epsilon)
             continue;
 
           // The point where the two line segments cross each other in the window plane.
           math::Point<2> const pc = line0.intersection_with(line1);
 
-          math::Vector<2> const p00_pc(p00, pc);
-          math::Vector<2> const p10_pc(p10, pc);
+          math::Vector<2> const p00_pc(p00, pc);                // The difference pc - p00.
+          math::Vector<2> const p10_pc(p10, pc);                // The difference pc - p10.
 
-          double const lambda0 = p00_pc.dot(d0);
-          double const lambda1 = p10_pc.dot(d1);
+          double const lambda0 = p00_pc.dot(p00_p01) / p00_p01.norm_squared();
+          double const lambda1 = p10_pc.dot(p10_p11) / p10_p11.norm_squared();
 
           if (lambda0 <= intersection_epsilon || lambda0 >= 1.0 - intersection_epsilon ||
               lambda1 <= intersection_epsilon || lambda1 >= 1.0 - intersection_epsilon)
             continue;   // Intersection lies outside the line segment (or too close to an endpoint).
 
           // Approximate depth at the intersection point by linear interpolation of endpoint depths.
-          double const depth1 = (1.0 - lambda0) * segment0.pd[0].depth + lambda0 * segment0.pd[1].depth;
-          double const depth2 = (1.0 - lambda1) * segment1.pd[0].depth + lambda1 * segment1.pd[1].depth;
+          double const depth0 = (1.0 - lambda0) * segment0.pd[0].depth + lambda0 * segment0.pd[1].depth;
+          double const depth1 = (1.0 - lambda1) * segment1.pd[0].depth + lambda1 * segment1.pd[1].depth;
 
-          if (std::abs(depth1 - depth2) < parallel_epsilon)
+          if (std::abs(depth0 - depth1) < parallel_epsilon)
           {
             // Effectively the same depth; we could use the signed distance of the project
             // from 4D to the hyperplane, but this never happens anyway in reality.
             continue;
           }
 
-          if (depth1 < depth2)
+          if (depth0 > depth1)
             add_relation(i0, i1);     // segment0 is behind segment1.
           else
             add_relation(i1, i0);     // segment1 is behind segment0.
@@ -494,45 +492,61 @@ int main()
         std::stable_sort(draw_order.begin(), draw_order.end(), [&](int lhs, int rhs){ return edge_depths[lhs] < edge_depths[rhs]; });
       }
 
-      static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
       std::vector<std::shared_ptr<draw::Line>> draw_edges;
+      draw_edges.reserve(2 * EdgeIndex::size);
       std::vector<std::shared_ptr<draw::Text>> draw_edge_labels;
-//      for (EdgeIndex const ei : draw_order)
-      for (EdgeIndex ei = edges.ibegin(); ei != edges.iend(); ++ei)        //FIXME: temporarily draw in "arbitrary" order.
-      {
-        Edge const& edge = edges[ei];
-        cairowindow::Point const from{edge.pd_e0.point_wc + window_center};
-        cairowindow::Point const to{edge.pd_e1.point_wc + window_center};
-
-        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = color::white, .line_width = 3.0})));
-        second_layer->draw(draw_edges.back());
-        draw_edges.push_back(std::make_shared<draw::Line>(from, to, line_style({.line_color = axis_color[edge.axis()]})));
-        second_layer->draw(draw_edges.back());
-
-        double const mid_x_wc = 0.5 * (edge.pd_e0.point_wc.x() + edge.pd_e1.point_wc.x());
-        double const mid_y_wc = 0.5 * (edge.pd_e0.point_wc.y() + edge.pd_e1.point_wc.y());
-        std::string text = std::to_string(ei.get_value());
-        draw_edge_labels.push_back(std::make_shared<draw::Text>(text, mid_x_wc + window_center_x, mid_y_wc + window_center_y, label_style));
-        second_layer->draw(draw_edge_labels.back());
-      }
-
-      std::vector<std::shared_ptr<draw::Point>> draw_intersections;
-      draw_intersections.reserve(intersection_points_wc.size());
-      for (auto const& ip_wc : intersection_points_wc)
-      {
-        cairowindow::Point const p{ip_wc.as_point() + window_center};
-        draw_intersections.push_back(std::make_shared<draw::Point>(p, segment_point_style));
-        second_layer->draw(draw_intersections.back());
-      }
-
+      draw_edge_labels.reserve(EdgeIndex::size);
       std::vector<std::shared_ptr<draw::Line>> draw_segments;
-      draw_segments.reserve(face_segments_wc.size());
-      for (auto const& seg : face_segments_wc)
+      draw_segments.reserve(2 * (line_segments_pd.size() - EdgeIndex::size));
+      std::vector<std::shared_ptr<draw::Point>> draw_intersection_points;
+      draw_intersection_points.reserve(number_of_intersection_points);
+
+//      for (EdgeIndex const ei : draw_order)
+      for (LineSegmentIndex li = line_segments_pd.ibegin(); li != line_segments_pd.iend(); ++li)        //FIXME: temporarily draw in "arbitrary" order.
       {
-        cairowindow::Point const a{seg.first.as_point() + window_center};
-        cairowindow::Point const b{seg.second.as_point() + window_center};
-        draw_segments.push_back(std::make_shared<draw::Line>(a, b, segment_line_style));
-        second_layer->draw(draw_segments.back());
+        // Calculate cairowindow points in pixels for both endpoints.
+        std::array<cairowindow::Point, 2> endpoint_px;
+        for (int i = 0; i < 2; ++i)
+          endpoint_px[i] = line_segments_pd[li].pd[i].point_wc + window_center;
+
+        if (line_segments_pd[li].is_edge)
+        {
+          static std::array<cairowindow::Color, 4> const axis_color = { color::red, color::green, color::blue, color::cyan };
+
+          // Get the axis that this edge is parallel with.
+          EdgeIndex const ei = line_segments_pd[li].idx.ei;
+          int const axis_number = ei.as_kface().k_axes.lssbi()();
+
+          // Draw edge.
+          draw_edges.push_back(std::make_shared<draw::Line>(endpoint_px[0], endpoint_px[1], line_style({.line_color = color::white, .line_width = 3.0})));
+          second_layer->draw(draw_edges.back());
+          draw_edges.push_back(std::make_shared<draw::Line>(endpoint_px[0], endpoint_px[1], line_style({.line_color = axis_color[axis_number]})));
+          second_layer->draw(draw_edges.back());
+
+#if 0
+          // Draw edge index as a label.
+          double const mid_x_px = 0.5 * (endpoint_px[0].x() + endpoint_px[1].x());
+          double const mid_y_px = 0.5 * (endpoint_px[0].y() + endpoint_px[1].y());
+          std::string text = std::to_string(ei.get_value());
+          draw_edge_labels.push_back(std::make_shared<draw::Text>(text, mid_x_px, mid_y_px, label_style));
+          second_layer->draw(draw_edge_labels.back());
+#endif
+        }
+        else
+        {
+          // Draw 2-face line segment.
+          draw_segments.push_back(std::make_shared<draw::Line>(endpoint_px[0], endpoint_px[1], segment_line_style({.line_color = color::white, .line_width = 4.0})));
+          second_layer->draw(draw_segments.back());
+          draw_segments.push_back(std::make_shared<draw::Line>(endpoint_px[0], endpoint_px[1], segment_line_style));
+          second_layer->draw(draw_segments.back());
+
+          // Draw intersection points.
+          for (int i = 0; i <= 1; ++i)
+          {
+            draw_intersection_points.push_back(std::make_shared<draw::Point>(endpoint_px[i], segment_point_style));
+            second_layer->draw(draw_intersection_points.back());
+          }
+        }
       }
 
       // Flush all expose events related to the drawing done above.
