@@ -451,46 +451,35 @@ int main()
         }
       }
 
-      std::vector<double> edge_depths;
-      edge_depths.reserve(edges.size());
-      for (Edge const& edge : edges)
-      {
-        double const depth = 0.5 * (edge.from_depth + edge.to_depth);
-        edge_depths.push_back(depth);
-      }
+      // Topologically sort all line segments (edges and 2-face segments) according to the
+      // back->front relations stored in `graph`. The result is a draw order in which
+      // every segment is drawn before all segments that are in front of it at some crossing.
+      std::vector<LineSegmentIndex> draw_order;
+      draw_order.reserve(line_segments_pd.size());
 
-      auto const compare_depth = [&](int lhs, int rhs)
-      {
-        return edge_depths[lhs] > edge_depths[rhs];
-      };
+      // Start with all segments that have no segments behind them (indegree 0).
+      std::queue<LineSegmentIndex> ready;
+      for (LineSegmentIndex li = indegree.ibegin(); li != indegree.iend(); ++li)
+        if (indegree[li] == 0)
+          ready.push(li);
 
-      std::priority_queue<int, std::vector<int>, decltype(compare_depth)> ready(compare_depth);
-      for (int i = 0; i < static_cast<int>(edges.size()); ++i)
-        if (indegree[i] == 0)
-          ready.push(i);
-
-      std::vector<int> draw_order;
-      draw_order.reserve(edges.size());
+      // Kahn's algorithm for topological sorting.
       while (!ready.empty())
       {
-        int const idx = ready.top();
+        LineSegmentIndex const back = ready.front();
         ready.pop();
-        draw_order.push_back(idx);
-        for (int const front : graph[idx])
+        draw_order.push_back(back);
+
+        for (LineSegmentIndex const front : graph[back])
         {
+          ASSERT(indegree[front] > 0);
           if (--indegree[front] == 0)
             ready.push(front);
         }
       }
 
-      if (draw_order.size() != edges.size())
-      {
-        // This should never happen - because it means there is a cycle in depth-ordering.
-        ASSERT(false);
-        draw_order.resize(edges.size());
-        std::iota(draw_order.begin(), draw_order.end(), 0);
-        std::stable_sort(draw_order.begin(), draw_order.end(), [&](int lhs, int rhs){ return edge_depths[lhs] < edge_depths[rhs]; });
-      }
+      // If this fails then there is a cycle in the depth-ordering graph.
+      ASSERT(draw_order.size() == line_segments_pd.size());
 
       std::vector<std::shared_ptr<draw::Line>> draw_edges;
       draw_edges.reserve(2 * EdgeIndex::size);
@@ -501,8 +490,8 @@ int main()
       std::vector<std::shared_ptr<draw::Point>> draw_intersection_points;
       draw_intersection_points.reserve(number_of_intersection_points);
 
-//      for (EdgeIndex const ei : draw_order)
-      for (LineSegmentIndex li = line_segments_pd.ibegin(); li != line_segments_pd.iend(); ++li)        //FIXME: temporarily draw in "arbitrary" order.
+      // Draw all line segments in the topologically sorted order.
+      for (LineSegmentIndex li : draw_order)
       {
         // Calculate cairowindow points in pixels for both endpoints.
         std::array<cairowindow::Point, 2> endpoint_px;
