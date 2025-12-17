@@ -8,7 +8,6 @@
 #include "Vector.h"
 #include "NiceDelta.h"
 #include "cairowindow/draw/Point.h"
-#include "cairowindow/draw/PlotArea.h"          // number_of_axis, calculate_range_ticks
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Rectangle.h"
 #include "cairowindow/draw/Text.h"
@@ -28,100 +27,8 @@
 
 namespace cwin = cairowindow;
 
-#if 0
-//FIXME: move to .cxx
-#include "cairowindow/intersection_points.h"
-inline std::shared_ptr<cwin::draw::Line> display_line(
-    boost::intrusive_ptr<Layer> const& layer,
-    cwin::draw::LineStyle const& line_style,
-    cwin::Line const& line)
-{
-  DoutEntering(dc::notice, "display_line(layer, line_style, " << line << ")");
-
-  cwin::Direction const& direction = line.direction();
-  cwin::Point const& point = line.point();
-
-  double normal_x = -direction.y();
-  double normal_y = direction.x();
-  math::Hyperplane<2> line_({normal_x, normal_y}, -(normal_x * point.x() + normal_y * point.y()));
-  math::Hyperblock<2> rectangle_({0, 0}, {window_width, window_height});
-  auto intersections = rectangle_.intersection_points(line_);
-
-  // Is the line outside the plot area?
-  if (intersections.empty())
-    return {};
-
-  constexpr math::Hyperblock<2>::IntersectionPointIndex first{size_t{0}};
-  constexpr math::Hyperblock<2>::IntersectionPointIndex second{size_t{1}};
-
-  double x1 = intersections[first][0];
-  double y1 = intersections[first][1];
-  double x2 = intersections[second][0];
-  double y2 = intersections[second][1];
-
-  Dout(dc::notice, "Calling draw(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ", ...)");
-  std::shared_ptr<cwin::draw::Line> result = std::make_shared<cwin::draw::Line>(x1, y1, x2, y2, line_style);
-  layer->draw(result);
-  return result;
-}
-#endif
-
-#if 0
-template<CS cs>
-class CoordinateSystem : public cwin::draw::PlotArea
-{
- private:
-  std::vector<std::shared_ptr<cwin::draw::Line>> lines_;                // draw::Line objects that are part of the CoordinateSystem drawing.
-  std::vector<std::shared_ptr<cwin::draw::Text>> texts_;                // draw::Text objects that are part of the CoordinateSystem drawing.
-  Transform<cs, CS::pixels> reference_transform_;                       // The Transform defining this CoordinateSystem.
-
- public:
-  // Construct a CoordinateSystem from a Transform. Call `display` to draw it.
-  CoordinateSystem(Transform<cs, CS::pixels> const& reference_transform, cwin::draw::PlotAreaStyle const& plot_area_style) :
-    cwin::draw::PlotArea({0, 0, window_width, window_height}, plot_area_style),
-    reference_transform_(reference_transform)
-  {
-    DoutEntering(dc::notice, "CoordinateSystem<" << utils::to_string(cs) << ">::CoordinateSystem(" <<
-        reference_transform << ", " << plot_area_style << ") [" << this << "]");
-  }
-
-  void display(boost::intrusive_ptr<Layer> const& layer);
-};
-
-template<CS cs>
-void CoordinateSystem<cs>::display(boost::intrusive_ptr<Layer> const& layer)
-{
-  DoutEntering(dc::notice, "CoordinateSystem<" << utils::to_string(cs) << ">::display(layer) [" << this << "]");
-
-  // Call display only once.
-  ASSERT(lines_.empty());
-
-  using Line = cwin::draw::Line;
-  using LineStyle = cwin::draw::LineStyle;
-  namespace color = cwin::color;
-
-  Point<CS::pixels> const csOrigin_pixels = Point<cs>{0, 0} * reference_transform_;
-  Point<CS::pixels> const csP10_pixels    = Point<cs>{1, 0} * reference_transform_;
-  Point<CS::pixels> const csP01_pixels    = Point<cs>{0, 1} * reference_transform_;
-
-  cwin::Point origin(csOrigin_pixels.x(), csOrigin_pixels.y());         // The (0, 0) (cs coordinates) point, in pixels coordinates.
-  cwin::Point P10(csP10_pixels.x(), csP10_pixels.y());                  // The (1, 0) (cs coordinates) point, in pixels coordinates.
-  cwin::Point P01(csP01_pixels.x(), csP01_pixels.y());                  // The (0, 1) (cs coordinates) point, in pixels coordinates.
-  cwin::Direction x_direction(origin, P10);
-  cwin::Direction y_direction(origin, P01);
-
-  // Draw the x-axis.
-  lines_.emplace_back(display_line(layer, LineStyle({.line_color = color::red, .line_width = 1.0}), {origin, x_direction}));
-  // Draw the y-axis.
-  lines_.emplace_back(display_line(layer, LineStyle({.line_color = color::red, .line_width = 1.0}), {origin, y_direction}));
-}
-#endif
-
 namespace draw {
 
-// Things from cwin::draw that we can use as-is.
-using PlotArea = cwin::draw::PlotArea;
-//using PlotAreaStyle = cwin::draw::PlotAreaStyle;
 using LineStyle = cwin::draw::LineStyle;
 //using PointStyle = cwin::draw::PointStyle;
 //using ConnectorStyle = cwin::draw::ConnectorStyle;
@@ -130,14 +37,51 @@ using LineStyle = cwin::draw::LineStyle;
 //using ArcStyle = cwin::draw::ArcStyle;
 //using TextStyle = cwin::draw::TextStyle;
 
-// Things from cwin::plot that we can use as-is.
-using cwin::plot::x_axis;
-using cwin::plot::y_axis;
-
+//---------------------------------------------------------------------------
+// CoordinateSystem
+//
+// Draw the 2D coordinate system `cs` with axes, tick marks and labels from a
+// given Transform<cs, CS::pixels>.
+//
+// Usage
+// -----
+//
+//   draw::CoordinateSystem<CS::foo> foo_cs(cs_transform_pixels, axis_style);
+//   foo_cs.display(layer);
+//
+// where `cs_transform_pixels` is a Transform<CS::foo, CS::pixels> that converts
+// from a logical coordinate system `foo` to window pixels.
+//
+// Lifetime and ownership
+// ----------------------
+//
+// The CoordinateSystem object must be kept alive for as long as you
+// want the axes and tick labels to remain visible.
+//
+// API overview
+// ------------
+// - Constructor
+//     CoordinateSystem(Transform<cs, CS::pixels> cs_transform_pixels,
+//                      LineStyle axis_style);
+//
+//   `cs_transform_pixels` converts from your logical coordinates `cs`
+//   to window pixels. The constructor uses this transform to compute
+//   where the x and y axes intersect the window rectangle
+//   [0, window_width] × [0, window_height]. The visible part of each
+//   axis is stored and `set_range` is called with the corresponding
+//   range in `cs` coordinates. Tick spacing and label formatting are
+//   chosen automatically using NiceDelta<cs>.
+//
+// - void display(LayerPtr const& layer);
+//     Draws the axes, tick marks and labels on `layer`.
+//     Call once per CoordinateSystem instance.
+//
 template<CS cs>
 class CoordinateSystem
 {
-  static constexpr int number_of_axes = PlotArea::number_of_axes;
+  static constexpr int x_axis = 0;
+  static constexpr int y_axis = 1;
+  static constexpr int number_of_axes = 2;
   using Direction = cwin::Direction;
 
  private:
@@ -174,16 +118,6 @@ class CoordinateSystem
     DoutEntering(dc::notice, "CoordinateSystem::~CoordinateSystem() [" << this << "]");
   }
 
-#if 0
-  CoordinateSystem(PlotAreaStyle plot_area_style,
-      std::string xlabel, XLabelStyle xlabel_style, std::string ylabel, YLabelStyle ylabel_style) :
-    plot_area_(axes_geometry(plot_area_style.axes_line_width()), plot_area_style),
-    xlabel_(std::make_shared<Text>(xlabel, plot_area_.geometry().offset_x() + 0.5 * plot_area_.geometry().width(),
-        plot_area_.geometry().offset_y() + plot_area_.geometry().height() + XLabelStyleDefaults::offset, xlabel_style)),
-    ylabel_(std::make_shared<Text>(ylabel, plot_area_.geometry().offset_x() - YLabelStyleDefaults::offset,
-        plot_area_.geometry().offset_y() + 0.5 * plot_area_.geometry().height(), ylabel_style)) { }
-#endif
-
   void set_range(int axis, Range<cs> range)
   {
     DoutEntering(dc::notice, "CoordinateSystem::set_range(" << axis << ", " << range << ") [" << this << "]");
@@ -192,19 +126,9 @@ class CoordinateSystem
     Dout(dc::notice, "range_[" << axis << "] = " << range_[axis] << "; range_ticks_[" << axis << "] = " << range_ticks_[axis]);
   }
 
-  cwin::Point clamp_to_plot_area(cwin::Point const& point) const
-  {
-    return {std::clamp(point.x(), range_[x_axis].min(), range_[x_axis].max()),
-            std::clamp(point.y(), range_[y_axis].min(), range_[y_axis].max())};
-  }
-
+  // Accessors.
   cwin::Range const& xrange() const { return range_[x_axis]; }
   cwin::Range const& yrange() const { return range_[y_axis]; }
-
-  cwin::Rectangle viewport() const
-  {
-    return {range_[x_axis].min(), range_[y_axis].min(), range_[x_axis].size(), range_[y_axis].size()};
-  }
 
 #if 0
   double convert_x(double x) const;

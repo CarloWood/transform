@@ -103,7 +103,7 @@ int main()
       Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
-      // Display the painter-coordinate-system.
+      // Display the centered-coordinate-system.
       draw::CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, LineStyle({.line_color = color::green, .line_width = 1.0}));
       centered_coordinate_system.display(layer);
 
