@@ -3,6 +3,11 @@
 #include "CS.h"
 #include "Size.h"
 #include "cairowindow/Point.h"
+#include <memory>
+
+namespace cairowindow::draw {
+class Point;
+} // namespace cairowindow::draw
 
 template<CS cs>
 class Point : public cairowindow::Point
@@ -20,4 +25,7 @@ class Point : public cairowindow::Point
   {
     return {x() + size.width(), y() + size.height()};
   }
+
+  // Drawable associated with this logical point; populated by CoordinateSystem::add_point.
+  mutable std::shared_ptr<cairowindow::draw::Point> draw_object_;
 };

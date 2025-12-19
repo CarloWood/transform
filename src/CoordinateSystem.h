@@ -95,7 +95,7 @@ class CoordinateSystem
 
  private:
   using LayerPtr = boost::intrusive_ptr<cwin::Layer>;
-  using PointPtr = std::shared_ptr<Point<cs>>;
+  using PointRef = Point<cs> const&;
   using LinePtr = std::shared_ptr<Line<cs>>;
   using RectanglePtr = std::shared_ptr<Rectangle<cs>>;
 //  using LinePiecePtr = std::shared_ptr<LinePiece<cs>>;
@@ -151,13 +151,13 @@ class CoordinateSystem
   }
 #endif
 
-#if 0
   //--------------------------------------------------------------------------
   // Point
 
   // Add and draw cs_point on layer using point_style.
-  void add_point(LayerPtr const& layer, PointStyle const& point_style, PointPtr const& cs_point);
+  void add_point(LayerPtr const& layer, cwin::draw::PointStyle const& point_style, PointRef cs_point);
 
+#if 0
  public:
   // Create and draw a point on layer at x,y using point_style.
   [[nodiscard]] PointPtr create_point(LayerPtr const& layer, PointStyle const& point_style, Point<cs> const& point)
@@ -564,22 +564,20 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer)
   }
 }
 
-//FIXME: add_* doesn't work like this: need to pass an object (eg plot::Point<cs>) derived from Point<cs> that also stores a std::shared_ptr<Point<pixels>.
-#if 0
-
 //--------------------------------------------------------------------------
 // Point
 
 template<CS cs>
-void CoordinateSystem<cs>::add_point(LayerPtr const& layer, PointStyle const& point_style, PointPtr const& cs_point)
+void CoordinateSystem<cs>::add_point(LayerPtr const& layer, cwin::draw::PointStyle const& point_style, PointRef cs_point)
 {
-  double x = plot_point.x();
-  double y = plot_point.y();
+  // Convert from the coordinate-system space to pixels using the transform supplied at construction.
+  Point<CS::pixels> point_pixels = cs_point * cs_transform_pixels_;
 
-  plot_point.draw_object_ = std::make_shared<draw::Point>(convert_x(x), convert_y(y), point_style);
-  draw_layer_region_on(layer, plot_point.draw_object_);
+  cs_point.draw_object_ = std::make_shared<cwin::draw::Point>(point_pixels.x(), point_pixels.y(), point_style);
+  layer->draw(cs_point.draw_object_);
 }
 
+#if 0
 //--------------------------------------------------------------------------
 // Line
 

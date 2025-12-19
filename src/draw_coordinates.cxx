@@ -6,6 +6,7 @@
 #include "cairowindow/draw/Shape.h"
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Text.h"
+#include "cairowindow/draw/Point.h"
 #include "cairowindow/draw/PlotArea.h"
 #include "math/Line.h"
 #include "utils/AIAlert.h"
@@ -110,6 +111,13 @@ int main()
       // Display the painter-coordinate-system.
       draw::CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, LineStyle({.line_color = color::red, .line_width = 1.0}));
       painter_coordinate_system.display(layer);
+
+      // Draw a test point at (1, -0.5) in both coordinate systems.
+      cwdraw::PointStyle const point_style({.color_index = 0, .filled_shape = 3});   // Filled ellipse.
+      Point<CS::centered> const centered_point(1.0, -0.5);
+      Point<CS::painter> const painter_point(1.0, -0.5);
+      centered_coordinate_system.add_point(layer, point_style, centered_point);
+      painter_coordinate_system.add_point(layer, point_style, painter_point);
 
       // Display the rectangle of ObjectSize_centered (centered-coordinate-system) with the top-left in the origin of the painter-coordinate-system (PainterOrigin).
       auto object1 = draw_rectangle(layer, painter_transform_pixels, PainterOrigin_painter, ObjectSize_painter, RectangleStyle({.line_color = color::black}));
