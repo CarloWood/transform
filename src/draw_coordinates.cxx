@@ -16,17 +16,17 @@
 
 // Draw a rectangle using painter->drawRect.
 auto draw_rectangle(boost::intrusive_ptr<cairowindow::Layer> const& layer, Transform<CS::painter, CS::pixels> const& painter_transform_pixels,
-    Point<CS::painter> const& topleft_painter, Size<CS::painter> const& size_painter, cairowindow::draw::RectangleStyle const& rectangle_style)
+    cairowindow::cs::Point<CS::painter> const& topleft_painter, cairowindow::cs::Size<CS::painter> const& size_painter, cairowindow::draw::RectangleStyle const& rectangle_style)
 {
   DoutEntering(dc::notice, "draw_rectangle(layer, " << painter_transform_pixels << ", " << topleft_painter << ", " << size_painter << ", rectangle_style)");
 
-  Point<CS::painter> bottomright_painter = topleft_painter + size_painter;
-  Point<CS::painter> topright_painter(topleft_painter.x() + size_painter.width(), topleft_painter.y());
-  Point<CS::painter> bottomleft_painter(topleft_painter.x(), topleft_painter.y() + size_painter.height());
-  Point<CS::pixels> topleft     = topleft_painter     * painter_transform_pixels;
-  Point<CS::pixels> bottomright = bottomright_painter * painter_transform_pixels;
-  Point<CS::pixels> topright    = topright_painter    * painter_transform_pixels;
-  Point<CS::pixels> bottomleft  = bottomleft_painter  * painter_transform_pixels;
+  cairowindow::cs::Point<CS::painter> bottomright_painter = topleft_painter + size_painter;
+  cairowindow::cs::Point<CS::painter> topright_painter(topleft_painter.x() + size_painter.width(), topleft_painter.y());
+  cairowindow::cs::Point<CS::painter> bottomleft_painter(topleft_painter.x(), topleft_painter.y() + size_painter.height());
+  cairowindow::cs::Point<CS::pixels> topleft     = topleft_painter     * painter_transform_pixels;
+  cairowindow::cs::Point<CS::pixels> bottomright = bottomright_painter * painter_transform_pixels;
+  cairowindow::cs::Point<CS::pixels> topright    = topright_painter    * painter_transform_pixels;
+  cairowindow::cs::Point<CS::pixels> bottomleft  = bottomleft_painter  * painter_transform_pixels;
 
   // Because the rectangle is potentially rotated, we have to draw four lines.
   std::array<std::shared_ptr<cairowindow::draw::Line>, 4> object = {
@@ -81,10 +81,10 @@ int main()
       Transform<CS::centered, CS::pixels>{}.translate(half_window_size).scale(half_window_size.height());
     Dout(dc::notice, "centered_transform_pixels = " << centered_transform_pixels);
 
-    Size<CS::pixels> const ObjectSize_pixels{object_width, object_height};
+    cairowindow::cs::Size<CS::pixels> const ObjectSize_pixels{object_width, object_height};
     Dout(dc::notice, "ObjectSize_pixels = " << ObjectSize_pixels);
 
-    Size<CS::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
+    cairowindow::cs::Size<CS::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
     for (double a = 0.0; a < 360.0; a += 15.0)
@@ -92,30 +92,30 @@ int main()
       auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(a);
       Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
-      Point<CS::painter> PainterOrigin_painter;
+      cairowindow::cs::Point<CS::painter> PainterOrigin_painter;
       Dout(dc::notice, "PainterOrigin_painter = " << PainterOrigin_painter);
 
-      Point<CS::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
+      cairowindow::cs::Point<CS::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
       Dout(dc::notice, "PainterOrigin_centered = " << PainterOrigin_centered);
 
       auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
       Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
 
-      Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
+      cairowindow::cs::Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
-      draw::CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, LineStyle({.line_color = color::green, .line_width = 1.0}));
-      centered_coordinate_system.display(layer);
+      cairowindow::CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels);
+      centered_coordinate_system.display(layer, LineStyle({.line_color = color::green, .line_width = 1.0}));
 
       // Display the painter-coordinate-system.
-      draw::CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, LineStyle({.line_color = color::red, .line_width = 1.0}));
-      painter_coordinate_system.display(layer);
+      cairowindow::CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels);
+      painter_coordinate_system.display(layer, LineStyle({.line_color = color::red, .line_width = 1.0}));
 
       // Draw a test point at (1, -0.5) in both coordinate systems.
-      cwdraw::PointStyle const point_style({.color_index = 0, .filled_shape = 3});   // Filled ellipse.
-      Point<CS::centered> const centered_point(1.0, -0.5);
-      Point<CS::painter> const painter_point(1.0, -0.5);
+      cairowindow::draw::PointStyle const point_style({.color_index = 0, .filled_shape = 3});   // Filled ellipse.
+      cairowindow::plot::cs::Point<CS::centered> const centered_point(1.0, -0.5);
+      cairowindow::plot::cs::Point<CS::painter> const painter_point(1.0, -0.5);
       centered_coordinate_system.add_point(layer, point_style, centered_point);
       painter_coordinate_system.add_point(layer, point_style, painter_point);
 

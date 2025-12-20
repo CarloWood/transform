@@ -38,7 +38,6 @@ class Rectangle : public RectangleToWindow, public cairowindow::Rectangle
 };
 #endif
 
-#include "CS.h"
 #include "cairowindow/Rectangle.h"
 
 template<CS cs>

@@ -31,8 +31,8 @@ class Transform
     return reinterpret_cast<Transform<to_cs, from_cs, !inverted> const&>(*this);
   }
 
-  Point<to_cs> multiply_from_the_right_with(Point<from_cs> const& point) const;
-  Size<to_cs> multiply_from_the_right_with(Size<from_cs> const& size) const;
+  cairowindow::cs::Point<to_cs> multiply_from_the_right_with(cairowindow::cs::Point<from_cs> const& point) const;
+  cairowindow::cs::Size<to_cs> multiply_from_the_right_with(cairowindow::cs::Size<from_cs> const& size) const;
 
   // Let A_M1_B be non-inverted and convert from A to B.
   // Let B_M2_C be non-inverted and convert from B to C.
@@ -136,7 +136,7 @@ Transform<from_cs, to_cs, inverted>& Transform<from_cs, to_cs, inverted>::rotate
 }
 
 template<CS from_cs, CS to_cs, bool inverted>
-Point<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(Point<from_cs> const& point) const
+cairowindow::cs::Point<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(cairowindow::cs::Point<from_cs> const& point) const
 {
   QPointF p{point.x(), point.y()};
   QPointF result;
@@ -148,13 +148,13 @@ Point<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(P
 }
 
 template<CS from_cs, CS to_cs, bool inverted>
-Point<to_cs> operator*(Point<from_cs> const& point, Transform<from_cs, to_cs, inverted> const& transform)
+cairowindow::cs::Point<to_cs> operator*(cairowindow::cs::Point<from_cs> const& point, Transform<from_cs, to_cs, inverted> const& transform)
 {
   return transform.multiply_from_the_right_with(point);
 }
 
 template<CS from_cs, CS to_cs, bool inverted>
-Size<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(Size<from_cs> const& size) const
+cairowindow::cs::Size<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(cairowindow::cs::Size<from_cs> const& size) const
 {
   // Just scale; scale the X and Y axis vectors by the full linear part.
   qreal const sx = std::hypot(m_.m11(), m_.m12());
@@ -166,7 +166,7 @@ Size<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(Si
 }
 
 template<CS from_cs, CS to_cs, bool inverted>
-Size<to_cs> operator*(Size<from_cs> const& size, Transform<from_cs, to_cs, inverted> const& transform)
+cairowindow::cs::Size<to_cs> operator*(cairowindow::cs::Size<from_cs> const& size, Transform<from_cs, to_cs, inverted> const& transform)
 {
   return transform.multiply_from_the_right_with(size);
 }

@@ -47,7 +47,7 @@ std::shared_ptr<draw::Slider> create_slider(plot::Plot& fake_plot, boost::intrus
   auto draw_slider = std::make_shared<draw::Slider>(geometry.offset_x(), geometry.offset_y(), geometry.width(), geometry.height(), start_value, min_value, max_value);
   static_cast<draw::MultiRegion&>(*draw_slider).draw_regions_on(layer.get());
   Window* window = layer->window();
-  window->register_draggable(fake_plot, draw_slider.get(), [draw_slider](Point const& point) -> Point { return point; });
+  window->register_draggable(fake_plot, draw_slider.get(), [draw_slider](plot::Point const& point) -> plot::Point { return point; });
   return draw_slider;
 }
 #endif
@@ -494,9 +494,9 @@ int main()
       for (LineSegmentIndex li : draw_order)
       {
         // Calculate cairowindow points in pixels for both endpoints.
-        std::array<cairowindow::Point, 2> endpoint_px;
+        std::array<cairowindow::cs::Point<CS::pixels>, 2> endpoint_px;
         for (int i = 0; i < 2; ++i)
-          endpoint_px[i] = line_segments_pd[li].pd[i].point_wc + window_center;
+          endpoint_px[i] = cairowindow::cs::Point<CS::pixels>{line_segments_pd[li].pd[i].point_wc + window_center};
 
         if (line_segments_pd[li].is_edge)
         {
