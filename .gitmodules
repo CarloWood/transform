@@ -26,3 +26,9 @@
 	path = enchantum
 	url = https://github.com/CarloWood/enchantum.git
 	branch = main
+[submodule "events"]
+	path = events
+	url = github-carlo:CarloWood/events.git
+[submodule "memory"]
+	path = memory
+	url = github-carlo:CarloWood/memory.git
