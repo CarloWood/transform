@@ -5,6 +5,14 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#ifdef CWDEBUG
+#include "utils/has_print_on.h"
+#endif
+
+#ifdef CWDEBUG
+// This class defines a print_on method.
+using utils::has_print_on::operator<<;
+#endif
 
 template<CS from_cs, CS to_cs, bool inverted = false>
 class Transform
@@ -99,6 +107,7 @@ class Transform
     }
   }
 
+#ifdef CWDEBUG
   void print_on(std::ostream& os) const
   {
     std::ostringstream prefix;
@@ -112,6 +121,7 @@ class Transform
     os << '\n' << std::setw(prefix_len) << " " <<
       std::left << "⎝" << std::setw(9) << m_.m31() << " " << std::setw(9) << m_.m32() << " " << m_.m33() << "⎠" << std::right;
   }
+#endif
 };
 
 template<CS from_cs, CS to_cs, bool inverted>

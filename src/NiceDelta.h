@@ -9,7 +9,7 @@
 #include <sstream>
 #include <string>
 
-template<CS cs>
+template<cairowindow::CS cs>
 class NiceDelta
 {
  public:
@@ -42,7 +42,7 @@ class NiceDelta
       ++exponent_;
   }
 
-  static int calculate_m(Range<cs> const& range, double delta)
+  static int calculate_m(cairowindow::cs::Range<cs> const& range, double delta)
   {
     return static_cast<int>(std::floor(range.max() / delta) - std::ceil(range.min() / delta)) + 1;
   }
@@ -51,7 +51,7 @@ class NiceDelta
   // Construct an "invalid" NiceDelta.
   NiceDelta() : mantissa_(invalid_magic) { }
 
-  NiceDelta(Range<cs> const& range)
+  NiceDelta(cairowindow::cs::Range<cs> const& range)
   {
     // Dividing by 9 guarantees that m() will return a value less than 10,
     // which then is guaranteed not larger than the sought for value.

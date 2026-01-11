@@ -7,12 +7,10 @@
 #include "utils/has_print_on.h"
 #endif
 
+namespace cairowindow::cs {
 #ifdef CWDEBUG
 using utils::has_print_on::operator<<;
 #endif
-
-//FIXME: remove this once this class is moved to cairowindow::cs.
-using CS = cairowindow::CS;
 
 template<CS cs>
 class Range : public cairowindow::Range
@@ -28,3 +26,5 @@ class Range : public cairowindow::Range
   }
 #endif
 };
+
+} // namespace cairowindow::cs

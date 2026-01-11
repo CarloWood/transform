@@ -97,9 +97,11 @@ class CoordinateSystem
 
 /*  std::shared_ptr<Text> xlabel_;
   std::shared_ptr<Text> ylabel_;*/
-  std::array<::Range<cs>, number_of_axes> range_{{{0.0, 0.0}, {0.0, 0.0}}};       // Zero means: not visible.
-  std::array<NiceDelta<cs>, number_of_axes> range_ticks_;                       // The number of tick marks on the visible segment of the respective axis.
-                                                                                // Invalid (default constructed) means: don't draw ticks.
+  std::array<cairowindow::cs::Range<cs>, number_of_axes> range_{
+    {{0.0, 0.0}, {0.0, 0.0}}                                                            // Zero means: not visible.
+  };
+  std::array<NiceDelta<cs>, number_of_axes> range_ticks_;                               // The number of tick marks on the visible segment of the respective axis.
+                                                                                        // Invalid (default constructed) means: don't draw ticks.
 /*  std::array<std::vector<std::shared_ptr<Text>>, number_of_axes> labels_;*/
 
  public:
@@ -110,7 +112,7 @@ class CoordinateSystem
     DoutEntering(dc::notice, "CoordinateSystem::~CoordinateSystem() [" << this << "]");
   }
 
-  void set_range(int axis, ::Range<cs> range)
+  void set_range(int axis, cairowindow::cs::Range<cs> range)
   {
     DoutEntering(dc::notice, "CoordinateSystem::set_range(" << axis << ", " << range << ") [" << this << "]");
     range_[axis] = range;
