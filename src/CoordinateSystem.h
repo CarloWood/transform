@@ -522,7 +522,7 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer, draw::LineStyle const&
       // Unit vector pointing into the positive direction of axis.
       cs::Direction<CS::pixels> axis_pixels{csOrigin_pixels_, tick_pixels};
       cs::Direction<CS::pixels> axis_tickmark_pixels =
-          (axis == x_axis) == (k < 0) ? axis_pixels.normal() : axis_pixels.normal_negate();
+          (axis == x_axis) == (k < 0) ? axis_pixels.rotate_90_degrees() : axis_pixels.rotate_270_degrees();
       cs::Point<CS::pixels> tick_end_pixels = tick_pixels + cs::Vector<CS::pixels>{axis_tickmark_pixels, 5.0};
       lines_.emplace_back(std::make_shared<draw::Line>(
             tick_pixels.x(), tick_pixels.y(),

@@ -417,7 +417,7 @@ int main()
           math::Line<2> const line1(p10, p10_p11.direction());  // Line equation for the line through the segment.
 
           // Skip parallel segments (in windowplane).
-          if (std::abs(line0.direction().dot(line1.direction().normal())) < parallel_epsilon)
+          if (std::abs(line0.direction().dot(line1.direction().rotate_90_degrees())) < parallel_epsilon)
             continue;
 
           // The point where the two line segments cross each other in the window plane.
