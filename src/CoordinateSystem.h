@@ -278,7 +278,7 @@ class CoordinateSystem
   template<typename... Args>
   [[nodiscard]] RectangleHandle create_rectangle(LayerPtr const& layer, draw::RectangleStyle const& rectangle_style, Args&&... args)
   {
-    RectangleHandle plot_rectangle_cs = std::make_shared<cairowindow::cs::Rectangle<cs>>(std::forward<Args>(args)...);
+    RectangleHandle plot_rectangle_cs(std::forward<Args>(args)...);
     add_rectangle(layer, rectangle_style, plot_rectangle_cs);
     return plot_rectangle_cs;
   }
