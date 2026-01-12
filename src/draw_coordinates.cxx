@@ -3,6 +3,9 @@
 #include "Transform.h"
 #include "cairowindow/Window.h"
 #include "cairowindow/Layer.h"
+#include "cairowindow/LayerRegion.h"
+#include "cairowindow/plot/Point.h"
+#include "cairowindow/plot/Rectangle.h"
 #include "cairowindow/draw/Shape.h"
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Text.h"
@@ -20,23 +23,42 @@ auto draw_rectangle(boost::intrusive_ptr<cairowindow::Layer> const& layer, Trans
 {
   DoutEntering(dc::notice, "draw_rectangle(layer, " << painter_transform_pixels << ", " << topleft_painter << ", " << size_painter << ", rectangle_style)");
 
-  cairowindow::cs::Point<CS::painter> bottomright_painter = topleft_painter + size_painter;
-  cairowindow::cs::Point<CS::painter> topright_painter(topleft_painter.x() + size_painter.width(), topleft_painter.y());
-  cairowindow::cs::Point<CS::painter> bottomleft_painter(topleft_painter.x(), topleft_painter.y() + size_painter.height());
-  cairowindow::cs::Point<CS::pixels> topleft     = topleft_painter     * painter_transform_pixels;
-  cairowindow::cs::Point<CS::pixels> bottomright = bottomright_painter * painter_transform_pixels;
-  cairowindow::cs::Point<CS::pixels> topright    = topright_painter    * painter_transform_pixels;
-  cairowindow::cs::Point<CS::pixels> bottomleft  = bottomleft_painter  * painter_transform_pixels;
+  cairowindow::cs::Rectangle<CS::painter> const rectangle_painter(topleft_painter.x(), topleft_painter.y(), size_painter.width(), size_painter.height());
 
-  // Because the rectangle is potentially rotated, we have to draw four lines.
-  std::array<std::shared_ptr<cairowindow::draw::Line>, 4> object = {
-    std::make_shared<cairowindow::draw::Line>(topleft.x(), topleft.y(), topright.x(), topright.y(), rectangle_style),
-    std::make_shared<cairowindow::draw::Line>(topright.x(), topright.y(), bottomright.x(), bottomright.y(), rectangle_style),
-    std::make_shared<cairowindow::draw::Line>(bottomright.x(), bottomright.y(), bottomleft.x(), bottomleft.y(), rectangle_style),
-    std::make_shared<cairowindow::draw::Line>(bottomleft.x(), bottomleft.y(), topleft.x(), topleft.y(), rectangle_style)
-  };
-  for (int i = 0; i < object.size(); ++i)
-    layer->draw(object[i]);
+  // Convert painter_transform_pixels to a cairo_matrix_t by mapping the origin and the standard basis vectors.
+  cairowindow::cs::Point<CS::pixels> const origin_pixels = cairowindow::cs::Point<CS::painter>{0.0, 0.0} * painter_transform_pixels;
+  cairowindow::cs::Point<CS::pixels> const ex_pixels = cairowindow::cs::Point<CS::painter>{1.0, 0.0} * painter_transform_pixels;
+  cairowindow::cs::Point<CS::pixels> const ey_pixels = cairowindow::cs::Point<CS::painter>{0.0, 1.0} * painter_transform_pixels;
+  cairo_matrix_t painter_matrix;
+  cairo_matrix_init(&painter_matrix,
+      ex_pixels.x() - origin_pixels.x(), ex_pixels.y() - origin_pixels.y(),
+      ey_pixels.x() - origin_pixels.x(), ey_pixels.y() - origin_pixels.y(),
+      origin_pixels.x(), origin_pixels.y());
+
+  auto object = std::make_shared<cairowindow::LayerRegion>([rectangle_painter, rectangle_style, painter_matrix](cairo_t* cr) -> cairowindow::StrokeExtents
+  {
+#ifdef CWDEBUG
+    using namespace debugcairo;
+#endif
+    // Construct the rectangle path in painter coordinates.
+    cairo_save(cr);
+    cairo_transform(cr, &painter_matrix);
+    cairo_rectangle(cr, rectangle_painter.offset_x(), rectangle_painter.offset_y(), rectangle_painter.width(), rectangle_painter.height());
+    cairo_restore(cr);
+
+    cairo_set_source_rgba(cr, rectangle_style.line_color().red(), rectangle_style.line_color().green(),
+        rectangle_style.line_color().blue(), rectangle_style.line_color().alpha());
+    cairo_set_line_width(cr, rectangle_style.line_width());
+    if (!rectangle_style.dashes().empty())
+      cairo_set_dash(cr, rectangle_style.dashes().data(), rectangle_style.dashes().size(), rectangle_style.dashes_offset());
+
+    double x1, y1, x2, y2;
+    cairo_stroke_extents(cr, &x1, &y1, &x2, &y2);
+    cairo_stroke(cr);
+    return {x1, y1, x2, y2};
+  });
+
+  layer->draw(object);
   return object;
 }
 
@@ -118,9 +140,9 @@ int main()
       cairowindow::plot::cs::Point<CS::painter> const painter_point(1.0, -0.5);
       centered_coordinate_system.add_point(layer, point_style, centered_point);
       painter_coordinate_system.add_point(layer, point_style, painter_point);
-
-      // Display the rectangle of ObjectSize_centered (centered-coordinate-system) with the top-left in the origin of the painter-coordinate-system (PainterOrigin).
-      auto object1 = draw_rectangle(layer, painter_transform_pixels, PainterOrigin_painter, ObjectSize_painter, RectangleStyle({.line_color = color::black}));
+      // Draw a rectangle in painter with one corner in the origin and the other at ObjectSize_painter.
+      cairowindow::plot::cs::Rectangle<CS::painter> const rectangle_painter(PainterOrigin_painter, ObjectSize_painter);
+      painter_coordinate_system.add_rectangle(layer, RectangleStyle({.line_color = color::black}), rectangle_painter);
 
       std::cin.get();
     }

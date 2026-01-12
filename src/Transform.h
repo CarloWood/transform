@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TranslationVector.h"
+#include "cairowindow/cs/Rectangle.h"
 #include <QTransform>
 #include <sstream>
 #include <algorithm>
@@ -41,6 +42,7 @@ class Transform
 
   cairowindow::cs::Point<to_cs> multiply_from_the_right_with(cairowindow::cs::Point<from_cs> const& point) const;
   cairowindow::cs::Size<to_cs> multiply_from_the_right_with(cairowindow::cs::Size<from_cs> const& size) const;
+  cairowindow::cs::Rectangle<to_cs> multiply_from_the_right_with(cairowindow::cs::Rectangle<from_cs> const& size) const;
 
   // Let A_M1_B be non-inverted and convert from A to B.
   // Let B_M2_C be non-inverted and convert from B to C.
@@ -179,4 +181,22 @@ template<CS from_cs, CS to_cs, bool inverted>
 cairowindow::cs::Size<to_cs> operator*(cairowindow::cs::Size<from_cs> const& size, Transform<from_cs, to_cs, inverted> const& transform)
 {
   return transform.multiply_from_the_right_with(size);
+}
+
+template<CS from_cs, CS to_cs, bool inverted>
+cairowindow::cs::Rectangle<to_cs> Transform<from_cs, to_cs, inverted>::multiply_from_the_right_with(cairowindow::cs::Rectangle<from_cs> const& rectangle) const
+{
+  cairowindow::cs::Point<from_cs> p_from_cs{rectangle.offset_x(), rectangle.offset_y()};
+  cairowindow::cs::Size<from_cs> s_from_cs{rectangle.width(), rectangle.height()};
+
+  cairowindow::cs::Point<to_cs> p_to_cs = multiply_from_the_right_with(p_from_cs);
+  cairowindow::cs::Size<to_cs> s_to_cs = multiply_from_the_right_with(s_from_cs);
+
+  return {p_to_cs, s_to_cs};
+}
+
+template<CS from_cs, CS to_cs, bool inverted>
+cairowindow::cs::Rectangle<to_cs> operator*(cairowindow::cs::Rectangle<from_cs> const& rectangle, Transform<from_cs, to_cs, inverted> const& transform)
+{
+  return transform.multiply_from_the_right_with(rectangle);
 }

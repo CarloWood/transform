@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Transform.h"
-#include "Rectangle.h"
 #include "Range.h"
 #include "NiceDelta.h"
 #include "window_size.h"
+#include "cairowindow/plot/Rectangle.h"
 #include "cairowindow/Layer.h"
 #include "cairowindow/Range.h"
 #include "cairowindow/cs/Line.h"
@@ -86,10 +86,10 @@ class CoordinateSystem
   std::array<cairowindow::cs::LinePiece<CS::pixels>, number_of_axes> line_piece_;       // The visible part of the axes (in CS::pixels).
 
  private:
+  using PointHandle     = cairowindow::plot::cs::Point<cs>;
+  using RectangleHandle = cairowindow::plot::cs::Rectangle<cs>;
   using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
-  using PointRef = cairowindow::plot::cs::Point<cs> const&;
   using LinePtr = std::shared_ptr<cairowindow::cs::Line<cs>>;
-  using RectanglePtr = std::shared_ptr<::Rectangle<cs>>;
 //  using LinePiecePtr = std::shared_ptr<LinePiece<cs>>;
 //  using CirclePtr = std::shared_ptr<Circle<cs>>;
 //  using ArcPtr = std::shared_ptr<Arc<cs>>;
@@ -149,18 +149,16 @@ class CoordinateSystem
   // Point
 
   // Add and draw cs_point on layer using point_style.
-  void add_point(LayerPtr const& layer, draw::PointStyle const& point_style, PointRef point_cs);
+  void add_point(LayerPtr const& layer, draw::PointStyle const& point_style, PointHandle const& plot_point_cs);
 
-#if 0
  public:
   // Create and draw a point on layer at x,y using point_style.
-  [[nodiscard]] PointPtr create_point(LayerPtr const& layer, PointStyle const& point_style, cairowindow::cs::Point<cs> const& point)
+  [[nodiscard]] PointHandle create_point(LayerPtr const& layer, draw::PointStyle const& point_style, cairowindow::cs::Point<cs> const& point_cs)
   {
-    PointPtr cs_point = std::make_shared<cairowindow::cs::Point<cs>>(point);
-    add_point(layer, point_style, cs_point);
-    return cs_point;
+    PointHandle plot_point_cs{point_cs};
+    add_point(layer, point_style, plot_point_cs);
+    return plot_point_cs;
   }
-#endif
 
 #if 0
   //--------------------------------------------------------------------------
@@ -267,27 +265,23 @@ class CoordinateSystem
     add_line(layer, line_style, cs_line);
     return cs_line;
   }
+#endif
 
   //--------------------------------------------------------------------------
   // Rectangle
 
-  // Add and draw plot_rectangle on layer, using rectangle_style.
-  void add_rectangle(LayerPtr const& layer, RectangleStyle const& rectangle_style, RectanglePtr const& cs_rectangle);
-
- private:
-  void add_rectangle(LayerPtr const& layer, RectangleStyle const& rectangle_style, RectanglePtr&& cs_rectangle);
+  // Add and draw plot_rectangle_cs on layer, using rectangle_style.
+  void add_rectangle(LayerPtr const& layer, draw::RectangleStyle const& rectangle_style, RectangleHandle const& plot_rectangle_cs);
 
  public:
   // Create and draw a rectangle on layer, using args... and rectangle_style.
   template<typename... Args>
-  [[nodiscard]] RectanglePtr create_rectangle(LayerPtr const& layer,
-      RectangleStyle const& rectangle_style, Args&&... args)
+  [[nodiscard]] RectangleHandle create_rectangle(LayerPtr const& layer, draw::RectangleStyle const& rectangle_style, Args&&... args)
   {
-    RectanglePtr cs_rectangle = std::make_shared<::Rectangle<cs>>(std::forward<Args>(args)...);
-    add_rectangle(layer, rectangle_style, cs_rectangle);
-    return cs_rectangle;
+    RectangleHandle plot_rectangle_cs = std::make_shared<cairowindow::cs::Rectangle<cs>>(std::forward<Args>(args)...);
+    add_rectangle(layer, rectangle_style, plot_rectangle_cs);
+    return plot_rectangle_cs;
   }
-#endif
 
 #if 0
   //--------------------------------------------------------------------------
@@ -565,13 +559,13 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer, draw::LineStyle const&
 // Point
 
 template<CS cs>
-void CoordinateSystem<cs>::add_point(LayerPtr const& layer, draw::PointStyle const& point_style, PointRef point_cs)
+void CoordinateSystem<cs>::add_point(LayerPtr const& layer, draw::PointStyle const& point_style, PointHandle const& plot_point_cs)
 {
   // Convert from the coordinate-system space to pixels using the transform supplied at construction.
-  cairowindow::cs::Point<CS::pixels> point_pixels = point_cs * cs_transform_pixels_;
+  cairowindow::cs::Point<CS::pixels> point_pixels = plot_point_cs * cs_transform_pixels_;
 
-  point_cs.create_draw_object({}, point_pixels.x(), point_pixels.y(), point_style);
-  layer->draw(point_cs.draw_object());
+  plot_point_cs.create_draw_object({}, point_pixels.x(), point_pixels.y(), point_style);
+  layer->draw(plot_point_cs.draw_object());
 }
 
 #if 0
@@ -607,24 +601,27 @@ void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line
       line_style);
   draw_layer_region_on(layer, plot_line.draw_object_);
 }
+#endif
 
 //--------------------------------------------------------------------------
 // Rectangle
 
 template<CS cs>
-void CoordinateSystem<cs>::add_rectangle(LayerPtr const& layer, RectangleStyle const& rectangle_style, RectanglePtr const& cs_rectangle)
+void CoordinateSystem<cs>::add_rectangle(LayerPtr const& layer, draw::RectangleStyle const& rectangle_style, RectangleHandle const& plot_rectangle_cs)
 {
-  double offset_x = plot_rectangle.offset_x();
-  double offset_y = plot_rectangle.offset_y();
-  double width = plot_rectangle.width();
-  double height = plot_rectangle.height();
+  // Convert from the coordinate-system space to pixels using the transform supplied at construction.
+  cairowindow::cs::Rectangle<CS::pixels> rectangle_pixels = plot_rectangle_cs * cs_transform_pixels_;
 
-  plot_rectangle.draw_object_ = std::make_shared<draw::Rectangle>(
-      convert_x(offset_x), convert_y(offset_y), convert_x(offset_x + width), convert_y(offset_y + height),
+  plot_rectangle_cs.create_draw_object({},
+      rectangle_pixels.offset_x(),
+      rectangle_pixels.offset_y(),
+      rectangle_pixels.offset_x() + rectangle_pixels.width(),
+      rectangle_pixels.offset_y() + rectangle_pixels.height(),
       rectangle_style);
-  draw_layer_region_on(layer, plot_rectangle.draw_object_);
+  layer->draw(plot_rectangle_cs.draw_object());
 }
 
+#if 0
 //--------------------------------------------------------------------------
 // Text
 
