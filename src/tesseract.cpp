@@ -41,7 +41,7 @@ using namespace cairowindow;
 
 #if 0
 std::shared_ptr<draw::Slider> create_slider(plot::Plot& fake_plot, boost::intrusive_ptr<Layer> const& layer,
-    Rectangle const& geometry, double start_value, double min_value, double max_value)
+    Geometry const& geometry, double start_value, double min_value, double max_value)
 {
 //  Slider plot_slider(geometry, min_value, max_value);
   auto draw_slider = std::make_shared<draw::Slider>(geometry.offset_x(), geometry.offset_y(), geometry.width(), geometry.height(), start_value, min_value, max_value);
@@ -77,7 +77,7 @@ struct Sliders
   std::vector<std::shared_ptr<draw::Text>> texts_;
   std::vector<plot::Slider> sliders_;
 
-  Sliders(boost::intrusive_ptr<Layer> const& layer, Rectangle const& geometry) :
+  Sliders(boost::intrusive_ptr<Layer> const& layer, Geometry const& geometry) :
     title_style_({.position = draw::centered_above, .font_size = 12.0, .offset = 30}),
     slider_style_({.position = draw::centered_below_no_bearing, .font_size = 12.0, .offset = 10}),
     fake_plot_(geometry, {}), layer_(layer), sliders_pos_x_(sliders_pos_x_start), sliders_pos_y_(sliders_pos_y_start) { }
