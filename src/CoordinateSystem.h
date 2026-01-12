@@ -12,6 +12,7 @@
 #include "cairowindow/draw/Point.h"
 #include "cairowindow/draw/Line.h"
 #include "cairowindow/draw/Rectangle.h"
+#include "cairowindow/draw/Polyline.h"
 #include "cairowindow/draw/Text.h"
 #include "cairowindow/draw/Arc.h"
 #include "cairowindow/draw/Circle.h"
@@ -610,14 +611,20 @@ template<CS cs>
 void CoordinateSystem<cs>::add_rectangle(LayerPtr const& layer, draw::RectangleStyle const& rectangle_style, RectangleHandle const& plot_rectangle_cs)
 {
   // Convert from the coordinate-system space to pixels using the transform supplied at construction.
-  cairowindow::cs::Rectangle<CS::pixels> rectangle_pixels = plot_rectangle_cs * cs_transform_pixels_;
+  cairowindow::cs::Point<cs> const topleft_cs(plot_rectangle_cs.offset_x(), plot_rectangle_cs.offset_y());
+  cairowindow::cs::Point<cs> const topright_cs(plot_rectangle_cs.offset_x() + plot_rectangle_cs.width(), plot_rectangle_cs.offset_y());
+  cairowindow::cs::Point<cs> const bottomright_cs(plot_rectangle_cs.offset_x() + plot_rectangle_cs.width(), plot_rectangle_cs.offset_y() + plot_rectangle_cs.height());
+  cairowindow::cs::Point<cs> const bottomleft_cs(plot_rectangle_cs.offset_x(), plot_rectangle_cs.offset_y() + plot_rectangle_cs.height());
 
-  plot_rectangle_cs.create_draw_object({},
-      rectangle_pixels.offset_x(),
-      rectangle_pixels.offset_y(),
-      rectangle_pixels.offset_x() + rectangle_pixels.width(),
-      rectangle_pixels.offset_y() + rectangle_pixels.height(),
-      rectangle_style);
+  std::vector<cairowindow::cs::Point<CS::pixels>> points_pixels = {
+    topleft_cs * cs_transform_pixels_,
+    topright_cs * cs_transform_pixels_,
+    bottomright_cs * cs_transform_pixels_,
+    bottomleft_cs * cs_transform_pixels_
+  };
+
+  draw::PolylineStyle polyline_style(rectangle_style);
+  plot_rectangle_cs.create_polyline_draw_object({}, std::move(points_pixels), polyline_style({.closed = true}));
   layer->draw(plot_rectangle_cs.draw_object());
 }
 
