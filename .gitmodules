@@ -28,7 +28,9 @@
 	branch = main
 [submodule "events"]
 	path = events
-	url = github-carlo:CarloWood/events.git
+	url = https://github.com/CarloWood/events.git
+	branch = master
 [submodule "memory"]
 	path = memory
-	url = github-carlo:CarloWood/memory.git
+	url = https://github.com/CarloWood/memory.git
+	branch = master

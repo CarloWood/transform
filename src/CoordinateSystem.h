@@ -5,9 +5,9 @@
 #include "NiceDelta.h"
 #include "window_size.h"
 #include "cairowindow/plot/Rectangle.h"
+#include "cairowindow/plot/Line.h"
 #include "cairowindow/Layer.h"
 #include "cairowindow/Range.h"
-#include "cairowindow/cs/Line.h"
 #include "cairowindow/cs/Vector.h"
 #include "cairowindow/draw/Point.h"
 #include "cairowindow/draw/Line.h"
@@ -87,10 +87,10 @@ class CoordinateSystem
   std::array<cairowindow::cs::LinePiece<CS::pixels>, number_of_axes> line_piece_;       // The visible part of the axes (in CS::pixels).
 
  private:
+  using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
   using PointHandle     = cairowindow::plot::cs::Point<cs>;
   using RectangleHandle = cairowindow::plot::cs::Rectangle<cs>;
-  using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
-  using LinePtr = std::shared_ptr<cairowindow::cs::Line<cs>>;
+  using LineHandle      = cairowindow::plot::cs::Line<cs>;
 //  using LinePiecePtr = std::shared_ptr<LinePiece<cs>>;
 //  using CirclePtr = std::shared_ptr<Circle<cs>>;
 //  using ArcPtr = std::shared_ptr<Arc<cs>>;
@@ -247,26 +247,21 @@ class CoordinateSystem
   }
 #endif
 
-#if 0
   //--------------------------------------------------------------------------
   // Line
 
   // Add and draw plot_line using line_style.
-  void add_line(LayerPtr const& layer, LineStyle const& line_style, LinePtr const& cs_line);
-
- private:
-  void add_line(LayerPtr const& layer, LineStyle const& line_style, LinePtr&& cs_line);
+  void add_line(LayerPtr const& layer, draw::LineStyle const& line_style, LineHandle const& plot_line_cs);
 
  public:
   // Create and draw a line through point in direction using line_style.
   template<typename... Args>
-  [[nodiscard]] LinePtr create_line(LayerPtr const& layer, LineStyle const& line_style, Args&&... args)
+  [[nodiscard]] LineHandle create_line(LayerPtr const& layer, draw::LineStyle const& line_style, Args&&... args)
   {
-    LinePtr cs_line = std::make_shared<::Line<cs>>(std::forward<Args>(args)...);
-    add_line(layer, line_style, cs_line);
-    return cs_line;
+    LineHandle plot_line_cs(std::forward<Args>(args)...);
+    add_line(layer, line_style, plot_line_cs);
+    return plot_line_cs;
   }
-#endif
 
   //--------------------------------------------------------------------------
   // Rectangle
@@ -517,7 +512,7 @@ void CoordinateSystem<cs>::display(LayerPtr const& layer, draw::LineStyle const&
       // Unit vector pointing into the positive direction of axis.
       cs::Direction<CS::pixels> axis_pixels{csOrigin_pixels_, tick_pixels};
       cs::Direction<CS::pixels> axis_tickmark_pixels =
-          (axis == x_axis) == (k < 0) ? axis_pixels.rotate_90_degrees() : axis_pixels.rotate_270_degrees();
+          (axis == x_axis) == (k < 0) ? axis_pixels.rotated_90_degrees() : axis_pixels.rotated_270_degrees();
       cs::Point<CS::pixels> tick_end_pixels = tick_pixels + cs::Vector<CS::pixels>{axis_tickmark_pixels, 5.0};
       lines_.emplace_back(std::make_shared<draw::Line>(
             tick_pixels.x(), tick_pixels.y(),
@@ -569,15 +564,14 @@ void CoordinateSystem<cs>::add_point(LayerPtr const& layer, draw::PointStyle con
   layer->draw(plot_point_cs.draw_object());
 }
 
-#if 0
 //--------------------------------------------------------------------------
 // Line
 
 template<CS cs>
-void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line_style, LinePtr const& cs_line)
+void CoordinateSystem<cs>::add_line(LayerPtr const& layer, draw::LineStyle const& line_style, LineHandle const& plot_line_cs)
 {
-  cairowindow::Direction const& direction = plot_line.direction();
-  cairowindow::Point const& point = plot_line.point();
+  cairowindow::cs::Direction<cs> const& direction = plot_line_cs.direction();
+  cairowindow::cs::Point<cs> const& point = plot_line_cs.point();
 
   double normal_x = -direction.y();
   double normal_y = direction.x();
@@ -591,18 +585,17 @@ void CoordinateSystem<cs>::add_line(LayerPtr const& layer, LineStyle const& line
 
   constexpr math::Hyperblock<2>::IntersectionPointIndex first{size_t{0}};
   constexpr math::Hyperblock<2>::IntersectionPointIndex second{size_t{1}};
+  math::Vector<2> const& intersection1{intersections[first]};
+  math::Vector<2> const& intersection2{intersections[second]};
+  cairowindow::cs::Point<cs> const intersection1_cs(intersection1.as_point());
+  cairowindow::cs::Point<cs> const intersection2_cs(intersection2.as_point());
 
-  double x1 = intersections[first][0];
-  double y1 = intersections[first][1];
-  double x2 = intersections[second][0];
-  double y2 = intersections[second][1];
+  cairowindow::cs::Point<CS::pixels> intersection1_pixels = intersection1_cs * cs_transform_pixels_;
+  cairowindow::cs::Point<CS::pixels> intersection2_pixels = intersection2_cs * cs_transform_pixels_;
 
-  plot_line.draw_object_ = std::make_shared<draw::Line>(
-      convert_x(x1), convert_y(y1), convert_x(x2), convert_y(y2),
-      line_style);
-  draw_layer_region_on(layer, plot_line.draw_object_);
+  plot_line_cs.create_draw_object({}, intersection1_pixels.x(), intersection1_pixels.y(), intersection2_pixels.x(), intersection2_pixels.y(), line_style);
+  layer->draw(plot_line_cs.draw_object());
 }
-#endif
 
 //--------------------------------------------------------------------------
 // Rectangle
