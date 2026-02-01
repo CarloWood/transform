@@ -23,6 +23,7 @@ int main()
     using EventLoop = cairowindow::EventLoop;
     using Layer = cairowindow::Layer;
     using Window = cairowindow::Window;
+    using Geometry = cairowindow::Geometry;
     namespace cs = cairowindow::cs;
     namespace color = cairowindow::color;
     namespace draw = cairowindow::draw;
@@ -35,7 +36,7 @@ int main()
     (void)background_layer;
 
     // Put the origin in the center of the window.
-    auto const geometry = window.geometry();
+    Geometry const geometry = window.geometry();
     cs::Size<CS::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
     auto const painter_transform_pixels = Transform<CS::painter, CS::pixels>{}.translate(half_window_size);
     CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, geometry);
@@ -45,7 +46,7 @@ int main()
     plot::cs::Point<CS::painter> point_painter{0.0, 0.0};
     painter_coordinate_system.add_point(layer, point_style, point_painter);
 
-    std::cout << "Hello World\n";
+    window.register_draggable(painter_coordinate_system, &point_painter);
 
     // Open window, handle event loop in a separate thread. This must be constructed after the draw stuff, so that it is destructed first!
     std::thread event_loop([&](){
@@ -56,6 +57,9 @@ int main()
       }
       Dout(dc::cairowindow, "Leaving event_loop thread!");
     });
+
+    while (window.handle_input_events())
+      ;
 
     event_loop.join();
   }

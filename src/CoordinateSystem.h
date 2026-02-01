@@ -84,7 +84,7 @@ class CoordinateSystem
   std::vector<std::shared_ptr<draw::Line>> lines_;                                      // To keep drawn lines alive.
   std::vector<std::shared_ptr<draw::Text>> texts_;                                      // To keep drawn texts alive.
   std::array<cairowindow::cs::LinePiece<CS::pixels>, number_of_axes> line_piece_;       // The visible part of the axes (in CS::pixels).
-  cairowindow::Geometry window_geometry_;                                               // Geometry used to calculate visible axis segments.
+  Geometry window_geometry_;                                                            // Geometry used to calculate visible axis segments.
 
  private:
   using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
@@ -106,7 +106,7 @@ class CoordinateSystem
 /*  std::array<std::vector<std::shared_ptr<Text>>, number_of_axes> labels_;*/
 
  public:
-  CoordinateSystem(Transform<cs, CS::pixels> const reference_transform, cairowindow::Geometry window_geometry);
+  CoordinateSystem(Transform<cs, CS::pixels> const reference_transform, Geometry window_geometry);
 
   ~CoordinateSystem()
   {
@@ -151,6 +151,9 @@ class CoordinateSystem
 
   // Add and draw cs_point on layer using point_style.
   void add_point(LayerPtr const& layer, draw::PointStyle const& point_style, PointHandle const& plot_point_cs);
+
+  // Called by Window::update_grabbed through the lambda defined in Window::register_draggable<cs> when a Draggable plot_point_cs was moved to (pixel_x, pixel_y).
+  Geometry update_grabbed(plot::cs::Point<cs>* plot_point_cs, double pixel_x, double pixel_y, std::function<cs::Point<cs> (cs::Point<cs> const&)> const& restriction);
 
  public:
   // Create and draw a point on layer at x,y using point_style.
@@ -405,7 +408,7 @@ std::tuple<int, std::array<cairowindow::cs::Point<cs>, 2>> intersect(cairowindow
 } // namespace detail
 
 template<CS cs>
-CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, cairowindow::Geometry window_geometry) :
+CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, Geometry window_geometry) :
   cs_transform_pixels_(cs_transform_pixels), window_geometry_(window_geometry)
 {
   DoutEntering(dc::notice, "CoordinateSystem::CoordinateSystem(" << cs_transform_pixels << ") [" << this << "]");
@@ -563,6 +566,24 @@ void CoordinateSystem<cs>::add_point(LayerPtr const& layer, draw::PointStyle con
   plot_point_cs.create_draw_object({}, point_pixels.x(), point_pixels.y(), point_style);
   layer->draw(plot_point_cs.draw_object());
 }
+
+template<CS cs>
+Geometry CoordinateSystem<cs>::update_grabbed(plot::cs::Point<cs>* plot_point_cs, double pixel_x, double pixel_y, std::function<cs::Point<cs> (cs::Point<cs> const&)> const& restriction)
+{
+  cs::Point<CS::pixels> const new_position_pixels{pixel_x, pixel_y};
+  cs::Point<cs> new_position_cs = new_position_pixels * cs_transform_pixels_.inverse();
+
+  if (restriction)
+    new_position_cs = restriction(new_position_cs);
+
+  *plot_point_cs = new_position_cs;
+
+  auto const& draw_object = plot_point_cs->draw_object();
+  add_point(draw_object->layer(), draw_object->point_style(), *plot_point_cs);
+
+  return plot_point_cs->geometry();
+};
+
 
 //--------------------------------------------------------------------------
 // Line
