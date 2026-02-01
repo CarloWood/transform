@@ -25,6 +25,20 @@ target_link_libraries(draw_coordinates
     enchantum::enchantum
 )
 
+add_executable(bounding_box_test
+  bounding_box_test.cxx
+)
+
+target_link_libraries(bounding_box_test
+  PRIVATE
+    AICxx::cairowindow
+    AICxx::symbolic
+    AICxx::math
+    ${AICXX_OBJECTS_LIST}
+    Qt6::Widgets
+    enchantum::enchantum
+)
+
 add_executable(NiceDelta_test
   NiceDelta_test.cpp
 )
