@@ -5,6 +5,7 @@
 #include "cairowindow/plot/Point.h"
 #include "utils/AIAlert.h"
 #include "utils/debug_ostream_operators.h"
+#include "utils/ColorPool.h"
 #include <iostream>
 #include <thread>
 #include "debug.h"
@@ -39,7 +40,8 @@ int main()
     auto const painter_transform_pixels = Transform<CS::painter, CS::pixels>{}.translate(half_window_size);
     CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, geometry);
 
-    draw::PointStyle const point_style({.color_index = 0, .filled_shape = 3});   // Filled ellipse.
+    utils::ColorPool<32> color_pool;
+    draw::PointStyle const point_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
     plot::cs::Point<CS::painter> point_painter{0.0, 0.0};
     painter_coordinate_system.add_point(layer, point_style, point_painter);
 
