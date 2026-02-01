@@ -3,7 +3,6 @@
 #include "Transform.h"
 #include "Range.h"
 #include "NiceDelta.h"
-#include "window_size.h"
 #include "cairowindow/plot/Rectangle.h"
 #include "cairowindow/plot/Line.h"
 #include "cairowindow/Layer.h"
@@ -42,7 +41,7 @@ namespace cairowindow {
 // Usage
 // -----
 //
-//   CoordinateSystem<CS::foo> foo_cs(cs_transform_pixels);
+//   CoordinateSystem<CS::foo> foo_cs(cs_transform_pixels, window.geometry());
 //   foo_cs.display(layer, axis_style);
 //
 // where `cs_transform_pixels` is a Transform<CS::foo, CS::pixels> that converts
@@ -57,12 +56,12 @@ namespace cairowindow {
 // API overview
 // ------------
 // - Constructor
-//     CoordinateSystem(Transform<cs, CS::pixels> cs_transform_pixels);
+//     CoordinateSystem(Transform<cs, CS::pixels> cs_transform_pixels, Geometry window_geometry);
 //
 //   `cs_transform_pixels` converts from your logical coordinates `cs`
 //   to window pixels. The constructor uses this transform to compute
 //   where the x and y axes intersect the window rectangle
-//   [0, window_width] × [0, window_height]. The visible part of each
+//   `window_geometry`. The visible part of each
 //   axis is stored and `set_range` is called with the corresponding
 //   range in `cs` coordinates. Tick spacing and label formatting are
 //   chosen automatically using NiceDelta<cs>.
@@ -85,6 +84,7 @@ class CoordinateSystem
   std::vector<std::shared_ptr<draw::Line>> lines_;                                      // To keep drawn lines alive.
   std::vector<std::shared_ptr<draw::Text>> texts_;                                      // To keep drawn texts alive.
   std::array<cairowindow::cs::LinePiece<CS::pixels>, number_of_axes> line_piece_;       // The visible part of the axes (in CS::pixels).
+  cairowindow::Geometry window_geometry_;                                               // Geometry used to calculate visible axis segments.
 
  private:
   using LayerPtr = boost::intrusive_ptr<cairowindow::Layer>;
@@ -106,7 +106,7 @@ class CoordinateSystem
 /*  std::array<std::vector<std::shared_ptr<Text>>, number_of_axes> labels_;*/
 
  public:
-  CoordinateSystem(Transform<cs, CS::pixels> const reference_transform);
+  CoordinateSystem(Transform<cs, CS::pixels> const reference_transform, cairowindow::Geometry window_geometry);
 
   ~CoordinateSystem()
   {
@@ -405,8 +405,8 @@ std::tuple<int, std::array<cairowindow::cs::Point<cs>, 2>> intersect(cairowindow
 } // namespace detail
 
 template<CS cs>
-CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels) :
-  cs_transform_pixels_(cs_transform_pixels)
+CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transform_pixels, cairowindow::Geometry window_geometry) :
+  cs_transform_pixels_(cs_transform_pixels), window_geometry_(window_geometry)
 {
   DoutEntering(dc::notice, "CoordinateSystem::CoordinateSystem(" << cs_transform_pixels << ") [" << this << "]");
 
@@ -433,7 +433,7 @@ CoordinateSystem<cs>::CoordinateSystem(Transform<cs, CS::pixels> const cs_transf
     // Determine where the axis intersects with the window rectangle (everything in pixels).
     auto [number_of_intersection_points, intersection_point_pixels] = detail::intersect<CS::pixels>(
         {csOrigin_pixels_, csAxisDirection_[axis]},     // The axis (pointing in the direction csAxisDirection_).
-        {{0, 0}, {window_width, window_height}});       // The window rectangle.
+        {{window_geometry_.offset_x(), window_geometry_.offset_y()}, {window_geometry_.width(), window_geometry_.height()}});       // The window rectangle.
 
     // Is the line outside the window?
     if (number_of_intersection_points < 2)
@@ -573,10 +573,21 @@ void CoordinateSystem<cs>::add_line(LayerPtr const& layer, draw::LineStyle const
   cairowindow::cs::Direction<cs> const& direction = plot_line_cs.direction();
   cairowindow::cs::Point<cs> const& point = plot_line_cs.point();
 
+  // Convert the line through `point` with direction `direction` into a HyperPlane.
   double normal_x = -direction.y();
   double normal_y = direction.x();
   math::Hyperplane<2> line({normal_x, normal_y}, -(normal_x * point.x()+ normal_y * point.y()));
-  math::Hyperblock<2> rectangle({range_[x_axis].min(), range_[y_axis].min()}, {range_[x_axis].max(), range_[y_axis].max()});
+
+  // Construct a Rectangle aligned with the axes that captures the range of the axes.
+  // Make the rectangle twice as big relative to its center.
+  cairowindow::cs::Rectangle<cs> rectangle_cs{
+    range_[x_axis].center() - range_[x_axis].size(),
+    range_[y_axis].center() - range_[y_axis].size(),
+    2 * range_[x_axis].size(),
+    2 * range_[y_axis].size()
+  };
+  // Convert that rectangle to a HyperBlock and calculate the intersection points with the line.
+  math::Hyperblock<2> rectangle({rectangle_cs.offset_x(), rectangle_cs.offset_y()}, {rectangle_cs.offset_x() + rectangle_cs.width(), rectangle_cs.offset_y() + rectangle_cs.height()});
   auto intersections = rectangle.intersection_points(line);
 
   // Is the line outside the plot area?

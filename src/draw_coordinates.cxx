@@ -1,6 +1,6 @@
 #include "sys.h"
+#include "window_size.h"
 #include "CoordinateSystem.h"
-#include "Transform.h"
 #include "cairowindow/Window.h"
 #include "cairowindow/Layer.h"
 #include "cairowindow/plot/Point.h"
@@ -87,11 +87,11 @@ int main()
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
-      CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels);
+      CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, win.geometry());
       centered_coordinate_system.display(layer, LineStyle({.line_color = color::green, .line_width = 1.0}));
 
       // Display the painter-coordinate-system.
-      CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels);
+      CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, win.geometry());
       painter_coordinate_system.display(layer, LineStyle({.line_color = color::red, .line_width = 1.0}));
 
       // Draw a test point at (1, -0.5) in both coordinate systems.
