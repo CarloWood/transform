@@ -40,7 +40,7 @@ target_link_libraries(bounding_box_test
 )
 
 add_executable(NiceDelta_test
-  NiceDelta_test.cpp
+  NiceDelta_test.cxx
 )
 
 target_link_libraries(NiceDelta_test
@@ -48,7 +48,7 @@ target_link_libraries(NiceDelta_test
 )
 
 add_executable(polytope_test
-  polytope_test.cpp
+  polytope_test.cxx
 )
 
 target_link_libraries(polytope_test
@@ -56,7 +56,7 @@ target_link_libraries(polytope_test
 )
 
 add_executable(tesseract
-  tesseract.cpp
+  tesseract.cxx
 )
 
 target_link_libraries(tesseract
@@ -67,7 +67,7 @@ target_link_libraries(tesseract
 )
 
 add_executable(graycode
-  graycode.cpp
+  graycode.cxx
 )
 
 target_link_libraries(graycode
