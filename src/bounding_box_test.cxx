@@ -13,6 +13,9 @@
 template<CS cs>
 using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
 
+using math::Transform;
+namespace csid = math::csid;
+
 int main()
 {
   Debug(NAMESPACE_DEBUG::init());
@@ -37,13 +40,13 @@ int main()
 
     // Put the origin in the center of the window.
     Geometry const geometry = window.geometry();
-    cs::Size<CS::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
-    auto const painter_transform_pixels = Transform<CS::painter, CS::pixels>{}.translate(half_window_size);
-    CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, geometry);
+    cs::Size<csid::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
+    auto const painter_transform_pixels = Transform<csid::painter, csid::pixels>{}.translate(half_window_size);
+    CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, geometry);
 
     utils::ColorPool<32> color_pool;
     draw::PointStyle const point_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
-    plot::cs::Point<CS::painter> point_painter{0.0, 0.0};
+    plot::cs::Point<csid::painter> point_painter{0.0, 0.0};
     painter_coordinate_system.add_point(layer, point_style, point_painter);
 
     window.register_draggable(painter_coordinate_system, &point_painter);

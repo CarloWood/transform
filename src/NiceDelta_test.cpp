@@ -1,6 +1,5 @@
 #include "sys.h"
-#include "NiceDelta.h"
-#include "Range.h"
+#include "cairowindow/cs/NiceDelta.h"
 #include <vector>
 #include <cstdint>
 #include "debug.h"
@@ -162,7 +161,7 @@ int main()
       int m_bf;
       double d_bf = bruteforce::brute_force_d(min, max, m_bf);
 
-      NiceDelta nice_delta(cairowindow::cs::Range<cairowindow::CS::pixels>{min, max});
+      cairowindow::cs::NiceDelta nice_delta(cairowindow::cs::Range<cairowindow::csid::pixels>{min, max});
       int m = nice_delta.m();
       double d = nice_delta.value();
 

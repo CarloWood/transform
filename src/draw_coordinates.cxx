@@ -17,8 +17,21 @@
 #include <vector>
 #include "debug.h"
 
- template<CS cs>
- using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
+using math::CS;
+using math::Transform;
+
+template<CS cs>
+using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
+
+namespace csid {
+  using namespace math::csid;
+  inline constexpr CS centered{1000};   // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
+} // namespace csid
+
+#if 0
+  else if (id == csid::centered.id)
+    return "cs::centered";
+#endif
 
 int main()
 {
@@ -59,53 +72,54 @@ int main()
     // Start of actual program.
 
     // Transformation from centered to pixels.
-    Transform<CS::centered, CS::pixels> const centered_transform_pixels =
-      Transform<CS::centered, CS::pixels>{}.translate(half_window_size).scale(half_window_size.height());
+    Transform<csid::centered, csid::pixels> const centered_transform_pixels =
+      Transform<csid::centered, csid::pixels>{}.translate(half_window_size).scale(half_window_size.height());
     Dout(dc::notice, "centered_transform_pixels = " << centered_transform_pixels);
 
-    cs::Size<CS::pixels> const ObjectSize_pixels{object_width, object_height};
+    cs::Size<csid::pixels> const ObjectSize_pixels{object_width, object_height};
     Dout(dc::notice, "ObjectSize_pixels = " << ObjectSize_pixels);
 
-    cs::Size<CS::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
+    cs::Size<csid::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
-    for (double a = 0.0; a < 360.0; a += 15.0)
+    for (int step = 0; step < 24; ++step)
     {
-      auto const painter_transform_centered = Transform<CS::painter, CS::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(a);
+      double angle = step * M_PI / 12.0;
+      auto const painter_transform_centered = Transform<csid::painter, csid::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(angle);
       Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
-      cs::Point<CS::painter> PainterOrigin_painter;
+      cs::Point<csid::painter> PainterOrigin_painter;
       Dout(dc::notice, "PainterOrigin_painter = " << PainterOrigin_painter);
 
-      cs::Point<CS::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
+      cs::Point<csid::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
       Dout(dc::notice, "PainterOrigin_centered = " << PainterOrigin_centered);
 
       auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
       Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
 
-      cs::Size<CS::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
+      cs::Size<csid::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
-      CoordinateSystem<CS::centered> centered_coordinate_system(centered_transform_pixels, win.geometry());
+      CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, win.geometry());
       centered_coordinate_system.display(layer, LineStyle({.line_color = color::green, .line_width = 1.0}));
 
       // Display the painter-coordinate-system.
-      CoordinateSystem<CS::painter> painter_coordinate_system(painter_transform_pixels, win.geometry());
+      CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, win.geometry());
       painter_coordinate_system.display(layer, LineStyle({.line_color = color::red, .line_width = 1.0}));
 
       // Draw a test point at (1, -0.5) in both coordinate systems.
       PointStyle const point_style({.color_index = 0, .filled_shape = 3});   // Filled ellipse.
-      plot::cs::Point<CS::centered> const point_centered(1.0, -0.5);
-      plot::cs::Point<CS::painter> const point_painter(1.0, -0.5);
+      plot::cs::Point<csid::centered> const point_centered(1.0, -0.5);
+      plot::cs::Point<csid::painter> const point_painter(1.0, -0.5);
       centered_coordinate_system.add_point(layer, point_style, point_centered);
       painter_coordinate_system.add_point(layer, point_style, point_painter);
       // Draw a rectangle in painter with one corner in the origin and the other at ObjectSize_painter.
-      plot::cs::Rectangle<CS::painter> const rectangle_painter(PainterOrigin_painter, ObjectSize_painter);
+      plot::cs::Rectangle<csid::painter> const rectangle_painter(PainterOrigin_painter, ObjectSize_painter);
       painter_coordinate_system.add_rectangle(layer, RectangleStyle({.line_color = color::black}), rectangle_painter);
       // Draw a line in painter through the point (1, -0.5) with a slope of 1.
-      cs::Direction slope{cs::Point<CS::painter>{1, 1}};
-      plot::cs::Line<CS::painter> const line_painter(point_painter, slope);
+      cs::Direction slope{cs::Point<csid::painter>{1, 1}};
+      plot::cs::Line<csid::painter> const line_painter(point_painter, slope);
       painter_coordinate_system.add_line(layer, LineStyle({.line_color = color::blue, .line_width = 1.0}), line_painter);
 
       std::cin.get();
