@@ -86,7 +86,8 @@ int main()
     for (int step = 0; step < 24; ++step)
     {
       double angle = step * M_PI / 12.0;
-      auto const painter_transform_centered = Transform<csid::painter, csid::centered>{}.translate(-0.5 * TranslationVector{ObjectSize_centered}).rotate(angle);
+      math::TranslationVector<csid::centered> size_translation{ObjectSize_centered};
+      auto const painter_transform_centered = Transform<csid::painter, csid::centered>{}.translate(-0.5 * size_translation).rotate(angle);
       Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
       cs::Point<csid::painter> PainterOrigin_painter;

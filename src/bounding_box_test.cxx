@@ -10,11 +10,12 @@
 #include <thread>
 #include "debug.h"
 
+namespace csid = math::csid;
+using math::Transform;
+using math::CS;
+
 template<CS cs>
 using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
-
-using math::Transform;
-namespace csid = math::csid;
 
 int main()
 {
