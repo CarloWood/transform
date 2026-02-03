@@ -73,3 +73,11 @@ add_executable(graycode
 target_link_libraries(graycode
   ${AICXX_OBJECTS_LIST}
 )
+
+add_executable(csid_test
+  csid_test.cxx
+)
+
+target_link_libraries(csid_test
+  ${AICXX_OBJECTS_LIST}
+)

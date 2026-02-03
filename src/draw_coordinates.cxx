@@ -25,7 +25,8 @@ using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
 
 namespace csid {
   using namespace math::csid;
-  inline constexpr CS centered{1000};   // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
+
+  DECLARE_CSID(centered);       // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
 } // namespace csid
 
 #if 0
