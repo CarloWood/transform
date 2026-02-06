@@ -53,6 +53,7 @@ int main()
     namespace color = cairowindow::color;
     namespace cs = cairowindow::cs;
     namespace plot = cairowindow::plot;
+    namespace draw = cairowindow::draw;
 
     // Create a window.
     Window win("My window", window_width, window_height);
@@ -123,6 +124,20 @@ int main()
       cs::Direction slope{cs::Point<csid::painter>{1, 1}};
       plot::cs::Line<csid::painter> const line_painter(point_painter, slope);
       painter_coordinate_system.add_line(layer, LineStyle({.line_color = color::blue, .line_width = 1.0}), line_painter);
+      // Draw a circle in painter with its center on the horizontal line through the center of rectangle_painter,
+      // such that it touches the corners on the right-side.
+      // The center of the rectangle:
+      cs::Point<csid::painter> const rectangle_center_painter = PainterOrigin_painter + 0.5 * ObjectSize_painter;
+      // Horizontal line through that point:
+      cs::Line<csid::painter> const middle_line{rectangle_center_painter, cs::Direction<csid::painter>::right};
+      // Line through bottom-right corner with slope 1.
+      cs::Line<csid::painter> const corner_line{PainterOrigin_painter + ObjectSize_painter, cs::Direction<csid::painter>(M_PI / 4)};
+      // Calculate the intersection point of those two lines.
+      cs::Point<csid::painter> const circle_center = middle_line.intersection_with(corner_line);
+      double radius = cs::Vector<csid::painter>{PainterOrigin_painter + ObjectSize_painter - circle_center}.norm();
+      // Draw the circle.
+      plot::cs::Circle<csid::painter> const circle(circle_center, radius);
+      painter_coordinate_system.add_circle(layer, draw::CircleStyle{}, circle);
 
       std::cin.get();
     }
