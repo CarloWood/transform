@@ -56,17 +56,17 @@ int main()
     namespace draw = cairowindow::draw;
 
     // Create a window.
-    Window win("My window", window_width, window_height);
+    Window window("My window", window_width, window_height);
 
     // Create a new layer with a white background.
-    auto layer = win.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
+    auto layer = window.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
 
     // Open the window and start drawing.
     std::thread event_loop([&](){
       Debug(NAMESPACE_DEBUG::init_thread("event_loop"));
       // Open window, handle event loop. This must be constructed after the draw stuff, so that it is destructed first!
       // Upon destruction it blocks until the event loop thread finished (aka, the window was closed).
-      EventLoop event_loop = win.run();
+      EventLoop event_loop = window.run();
       event_loop.set_cleanly_terminated();
     });
 
@@ -104,11 +104,11 @@ int main()
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
-      CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, win.geometry());
+      CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, window.geometry());
       centered_coordinate_system.display(layer, LineStyle({.line_color = color::green, .line_width = 1.0}));
 
       // Display the painter-coordinate-system.
-      CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, win.geometry());
+      CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, window.geometry());
       painter_coordinate_system.display(layer, LineStyle({.line_color = color::red, .line_width = 1.0}));
 
       // Draw a test point at (1, -0.5) in both coordinate systems.
@@ -144,7 +144,12 @@ int main()
           draw::TextStyle({.position = draw::centered_below, .offset = radius_pixels + 4.0}),
           circle_center, "Circle");
 
-      std::cin.get();
+      Dout(dc::notice, "Press space in window (or any other key to quit).");
+      if (!window.handle_input_events())
+      {
+        Dout(dc::notice, "Window destroyed: leaving step loop.");
+        break;
+      }
     }
 
     // End
