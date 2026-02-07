@@ -138,6 +138,11 @@ int main()
       // Draw the circle.
       plot::cs::Circle<csid::painter> const circle(circle_center, radius);
       painter_coordinate_system.add_circle(layer, draw::CircleStyle{}, circle);
+      // Label the circle in painter coordinate system.
+      double const radius_pixels = radius * painter_transform_pixels.x_scale();
+      auto const circle_label = painter_coordinate_system.create_text(layer,
+          draw::TextStyle({.position = draw::centered_below, .offset = radius_pixels + 4.0}),
+          circle_center, "Circle");
 
       std::cin.get();
     }
