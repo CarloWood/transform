@@ -24,9 +24,9 @@ template<CS cs>
 using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
 
 namespace csid {
-  using namespace math::csid;
+using namespace math::csid;
 
-  DECLARE_CSID(centered);       // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
+DECLARE_CSID(centered);         // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
 } // namespace csid
 
 #if 0
@@ -78,10 +78,10 @@ int main()
       Transform<csid::centered, csid::pixels>{}.translate(half_window_size).scale(half_window_size.height());
     Dout(dc::notice, "centered_transform_pixels = " << centered_transform_pixels);
 
-    cs::Size<csid::pixels> const ObjectSize_pixels{object_width, object_height};
+    math::cs::Size<csid::pixels> const ObjectSize_pixels{object_width, object_height};
     Dout(dc::notice, "ObjectSize_pixels = " << ObjectSize_pixels);
 
-    cs::Size<csid::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
+    math::cs::Size<csid::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
     for (int step = 0; step < 24; ++step)
@@ -91,16 +91,16 @@ int main()
       auto const painter_transform_centered = Transform<csid::painter, csid::centered>{}.translate(-0.5 * size_translation).rotate(angle);
       Dout(dc::notice, "painter_transform_centered = " << painter_transform_centered);
 
-      cs::Point<csid::painter> PainterOrigin_painter;
+      math::cs::Point<csid::painter> PainterOrigin_painter;
       Dout(dc::notice, "PainterOrigin_painter = " << PainterOrigin_painter);
 
-      cs::Point<csid::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
+      math::cs::Point<csid::centered> PainterOrigin_centered = PainterOrigin_painter * painter_transform_centered;
       Dout(dc::notice, "PainterOrigin_centered = " << PainterOrigin_centered);
 
       auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
       Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
 
-      cs::Size<csid::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
+      math::cs::Size<csid::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
@@ -121,20 +121,20 @@ int main()
       plot::cs::Rectangle<csid::painter> const rectangle_painter(PainterOrigin_painter, ObjectSize_painter);
       painter_coordinate_system.add_rectangle(layer, RectangleStyle({.line_color = color::black}), rectangle_painter);
       // Draw a line in painter through the point (1, -0.5) with a slope of 1.
-      cs::Direction slope{cs::Point<csid::painter>{1, 1}};
+      math::cs::Direction slope{math::cs::Point<csid::painter>{1, 1}};
       plot::cs::Line<csid::painter> const line_painter(point_painter, slope);
       painter_coordinate_system.add_line(layer, LineStyle({.line_color = color::blue, .line_width = 1.0}), line_painter);
       // Draw a circle in painter with its center on the horizontal line through the center of rectangle_painter,
       // such that it touches the corners on the right-side.
       // The center of the rectangle:
-      cs::Point<csid::painter> const rectangle_center_painter = PainterOrigin_painter + 0.5 * ObjectSize_painter;
+      math::cs::Point<csid::painter> const rectangle_center_painter = PainterOrigin_painter + 0.5 * ObjectSize_painter;
       // Horizontal line through that point:
-      cs::Line<csid::painter> const middle_line{rectangle_center_painter, cs::Direction<csid::painter>::right};
+      math::cs::Line<csid::painter> const middle_line{rectangle_center_painter, math::cs::Direction<csid::painter>::right};
       // Line through bottom-right corner with slope 1.
-      cs::Line<csid::painter> const corner_line{PainterOrigin_painter + ObjectSize_painter, cs::Direction<csid::painter>(M_PI / 4)};
+      math::cs::Line<csid::painter> const corner_line{PainterOrigin_painter + ObjectSize_painter, math::cs::Direction<csid::painter>(M_PI / 4)};
       // Calculate the intersection point of those two lines.
-      cs::Point<csid::painter> const circle_center = middle_line.intersection_with(corner_line);
-      double radius = cs::Vector<csid::painter>{PainterOrigin_painter + ObjectSize_painter - circle_center}.norm();
+      math::cs::Point<csid::painter> const circle_center = middle_line.intersection_with(corner_line);
+      double radius = math::cs::Vector<csid::painter>{PainterOrigin_painter + ObjectSize_painter - circle_center}.norm();
       // Draw the circle.
       plot::cs::Circle<csid::painter> const circle(circle_center, radius);
       painter_coordinate_system.add_circle(layer, draw::CircleStyle{}, circle);

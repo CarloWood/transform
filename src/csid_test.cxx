@@ -1,5 +1,5 @@
 #include "sys.h"
-#include "math/CS.h"
+#include "math/cs/CS.h"
 #include "debug.h"
 
 using math::CS;

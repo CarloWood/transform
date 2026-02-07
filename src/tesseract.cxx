@@ -494,9 +494,9 @@ int main()
       for (LineSegmentIndex li : draw_order)
       {
         // Calculate cairowindow points in pixels for both endpoints.
-        std::array<cairowindow::cs::Point<csid::pixels>, 2> endpoint_px;
+        std::array<math::cs::Point<csid::pixels>, 2> endpoint_px;
         for (int i = 0; i < 2; ++i)
-          endpoint_px[i] = cairowindow::cs::Point<csid::pixels>{line_segments_pd[li].pd[i].point_wc + window_center};
+          endpoint_px[i] = math::cs::Point<csid::pixels>{line_segments_pd[li].pd[i].point_wc + window_center};
 
         if (line_segments_pd[li].is_edge)
         {

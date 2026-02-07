@@ -41,7 +41,7 @@ int main()
 
     // Put the origin in the center of the window.
     Geometry const geometry = window.geometry();
-    cs::Size<csid::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
+    math::cs::Size<csid::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
     auto const painter_transform_pixels = Transform<csid::painter, csid::pixels>{}.translate(half_window_size);
     CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, geometry);
 
