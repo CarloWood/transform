@@ -13,12 +13,17 @@
 #include <thread>
 #include "debug.h"
 
-namespace csid = math::csid;
 using math::Transform;
 using math::CS;
 
 template<CS cs>
 using CoordinateSystem = cairowindow::CoordinateSystem<cs>;
+
+namespace csid {
+using namespace math::csid;
+
+DECLARE_CSID(centered);         // Coordinate system with origin in the middle of the window, same scale as the window (1 per pixel).
+} // namespace csid
 
 int main()
 {
@@ -42,18 +47,19 @@ int main()
     auto layer = window.create_layer<Layer>({} COMMA_DEBUG_ONLY("layer"));
     (void)background_layer;
 
-    // Put the origin in the center of the window.
+    // Put the origin of `centered` in the center of the window.
     Geometry const geometry = window.geometry();
     math::cs::Size<csid::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
-    auto const painter_transform_pixels = Transform<csid::painter, csid::pixels>{}.translate(half_window_size);
-    CoordinateSystem<csid::painter> painter_coordinate_system(painter_transform_pixels, geometry);
+    auto const centered_transform_pixels = Transform<csid::centered, csid::pixels>{}.translate(half_window_size);
+    CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, geometry);
 
     utils::ColorPool<32> color_pool;
     draw::PointStyle const point0_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
     draw::PointStyle const point1_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
     draw::RectangleStyle const rectangle_style({.line_color = color::black, .line_width = 2.0});
 
-    auto bounding_box_from = [](auto const& p0, auto const& p1) -> cs::Rectangle<csid::painter>
+    // Construct an centered-Axes Aligned Bounding Box from two points.
+    auto AABB_centered_from = [](auto const& p0, auto const& p1) -> cs::Rectangle<csid::centered>
     {
       double const left = std::min(p0.x(), p1.x());
       double const right = std::max(p0.x(), p1.x());
@@ -62,14 +68,19 @@ int main()
       return {left, top, right - left, bottom - top};
     };
 
-    plot::cs::Point<csid::painter> point0_painter{-100.0, -50.0};
-    plot::cs::Point<csid::painter> point1_painter{100.0, 50.0};
+    //-------------------------------------------------------------------------
+    // Draggables
 
-    painter_coordinate_system.add_point(layer, point0_style, point0_painter);
-    painter_coordinate_system.add_point(layer, point1_style, point1_painter);
+    plot::cs::Point<csid::centered> point0_centered{-100.0, -50.0};
+    plot::cs::Point<csid::centered> point1_centered{100.0, 50.0};
 
-    window.register_draggable(painter_coordinate_system, &point0_painter);
-    window.register_draggable(painter_coordinate_system, &point1_painter);
+    centered_coordinate_system.add_point(layer, point0_style, point0_centered);
+    centered_coordinate_system.add_point(layer, point1_style, point1_centered);
+
+    window.register_draggable(centered_coordinate_system, &point0_centered);
+    window.register_draggable(centered_coordinate_system, &point1_centered);
+    //
+    //-------------------------------------------------------------------------
 
     // Open window, handle event loop in a separate thread. This must be constructed after the draw stuff, so that it is destructed first!
     std::thread event_loop([&](){
@@ -81,13 +92,14 @@ int main()
       Dout(dc::cairowindow, "Leaving event_loop thread!");
     });
 
+    // Main loop.
     while (true)
     {
       // Suppress immediate updating of the window for each created item, in order to avoid flickering.
       window.set_send_expose_events(false);
 
       // Draw a rectangle between point0 and point1.
-      auto plot_rectangle_painter = painter_coordinate_system.create_rectangle(layer, rectangle_style, bounding_box_from(point0_painter, point1_painter));
+      auto plot_rectangle_centered = centered_coordinate_system.create_rectangle(layer, rectangle_style, AABB_centered_from(point0_centered, point1_centered));
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
