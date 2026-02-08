@@ -143,8 +143,6 @@ int main()
       {
         point2_centered = restricted_point2;
         centered_coordinate_system.add_point(layer, point2_style, point2_centered);
-        // point2 moved outside of a drag operation; keep the clickable rectangle in sync with the new position.
-        window.update_draggable_geometry(&point2_centered);
       }
 
       // Draw a rectangle between point0 and point1.
