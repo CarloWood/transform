@@ -43,9 +43,8 @@ int main()
 
     Window window("Bounding box test", 1280, 720);
 
-    auto background_layer = window.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
+    [[maybe_unused]] auto background_layer = window.create_background_layer<Layer>(color::white COMMA_DEBUG_ONLY("background_layer"));
     auto layer = window.create_layer<Layer>({} COMMA_DEBUG_ONLY("layer"));
-    (void)background_layer;
 
     // Put the origin of `centered` in the center of the window.
     Geometry const geometry = window.geometry();
@@ -53,6 +52,7 @@ int main()
     auto const centered_transform_pixels = Transform<csid::centered, csid::pixels>{}.translate(half_window_size);
     CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, geometry);
 
+    // Draw styles being used.
     utils::ColorPool<32> color_pool;
     draw::PointStyle const point0_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
     draw::PointStyle const point1_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 10});
