@@ -139,7 +139,7 @@ int main()
       // If point2 is outside the updated bounding box (or too close to an edge), clamp it back inside.
       // This keeps point2 inside even when point0/point1 resize/move the rectangle.
       CenteredPoint const restricted_point2 = restrict_to_AABB_inner_area(point2_centered, AABB_centered);
-      if (restricted_point2.x() != point2_centered.x() || restricted_point2.y() != point2_centered.y())
+      if (point2_centered != restricted_point2)
       {
         point2_centered = restricted_point2;
         centered_coordinate_system.add_point(layer, point2_style, point2_centered);
