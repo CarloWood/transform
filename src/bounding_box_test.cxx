@@ -72,8 +72,8 @@ int main()
     //-------------------------------------------------------------------------
     // Draggables
 
-    plot::cs::Point<csid::centered> point0_centered{-100.0, -50.0};
-    plot::cs::Point<csid::centered> point1_centered{100.0, 50.0};
+    plot::cs::Point<csid::centered> point0_centered{-400.0, -200.0};
+    plot::cs::Point<csid::centered> point1_centered{400.0, 200.0};
     plot::cs::Point<csid::centered> point2_centered{0.0, 0.0};
 
     // Current bounding box. This is updated inside the main loop; the point2 restriction captures it by reference.
