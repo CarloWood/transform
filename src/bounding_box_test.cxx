@@ -24,6 +24,7 @@ namespace csid {
 using namespace math::csid;
 
 DECLARE_CSID(centered);         // Coordinate system with origin in the middle of the window, same scale as the window (1 per pixel).
+DECLARE_CSID(p2_frame);         // Coordinate system with origin at P2 and axes aligned with the two perpendicular lines.
 } // namespace csid
 
 int main()
@@ -48,10 +49,10 @@ int main()
     auto layer = window.create_layer<Layer>({} COMMA_DEBUG_ONLY("layer"));
 
     // Put the origin of `centered` in the center of the window.
-    Geometry const geometry = window.geometry();
-    math::cs::Size<csid::pixels> const half_window_size(0.5 * geometry.width(), 0.5 * geometry.height());
+    Geometry const window_geometry = window.geometry();
+    math::cs::Size<csid::pixels> const half_window_size(0.5 * window_geometry.width(), 0.5 * window_geometry.height());
     auto const centered_transform_pixels = Transform<csid::centered, csid::pixels>{}.translate(half_window_size);
-    CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, geometry);
+    CoordinateSystem<csid::centered> centered_coordinate_system(centered_transform_pixels, window_geometry);
     using CenteredPoint = math::cs::Point<csid::centered>;
     using CenteredDirection = math::cs::Direction<csid::centered>;
 
@@ -94,6 +95,17 @@ int main()
     // A draggable point on a circle around P2.
     //
     plot::cs::Point<csid::centered> plot_Q2{plot_P2 + circle_radius * D2};
+
+    // Create a coordinate system with origin in P2 and axes aligned with the two perpendicular lines through P2.
+    //
+    // p2_frame -> centered is a rotation by angle(D2) followed by a translation by P2.
+    // Since centered -> pixels is just a translation (origin in the center of the window), we can compose both transforms.
+    auto make_p2_frame_transform_pixels = [&]() -> Transform<csid::p2_frame, csid::pixels>
+    {
+      double const theta = D2.as_angle();
+      auto const p2_frame_transform_centered = Transform<csid::p2_frame, csid::centered>{}.translate(plot_P2).rotate(theta);
+      return p2_frame_transform_centered * centered_transform_pixels;
+    };
 
     // Current bounding box. This is updated inside the main loop; the P2 restriction captures it by reference.
     cs::Rectangle<csid::centered> AABB_centered = AABB_centered_from(plot_P0, plot_P1);
@@ -172,6 +184,10 @@ int main()
       if (plot_P2 != restricted_P2)
         plot_P2.move_to(restricted_P2);
 
+      // Create the p2_frame coordinate system that follows P2 and D2.
+      CoordinateSystem<csid::p2_frame> p2_frame_coordinate_system(make_p2_frame_transform_pixels(), window_geometry);
+      p2_frame_coordinate_system.display(layer, draw::LineStyle({.line_color = color::red, .line_width = 1.0}));
+
       // Draw a rectangle between P0 and P1.
       auto plot_rectangle_centered = centered_coordinate_system.create_rectangle(layer, rectangle_style, AABB_centered);
 
@@ -179,9 +195,9 @@ int main()
       auto plot_circle_centered = centered_coordinate_system.create_circle(layer, circle_style, plot_P2, circle_radius);
 
       // Draw lines through P2 and Q2, and perpendicular to that.
-      std::array<plot::cs::Line<csid::centered>, 2> plot_lines;
+      std::array<math::cs::Line<csid::centered>, 2> lines;
       for (int l = 0; l <= 1; ++l)
-        plot_lines[l] = centered_coordinate_system.create_line(layer, line_style, plot_P2, l == 0 ? D2 : D2.rotated_90_degrees());
+        lines[l] = centered_coordinate_system.create_line(layer, line_style, plot_P2, l == 0 ? D2 : D2.rotated_90_degrees());
 
       // The plot- intersection points.
       std::array<std::vector<plot::cs::Point<csid::centered>>, 2> plot_ips;
@@ -196,7 +212,7 @@ int main()
         std::vector<math::Hyperplane<2>> hyperplanes;
         for (int l = 0; l <= 1; ++l)
         {
-          normal[l] = plot_lines[l].raw().direction().rotated_90_degrees();
+          normal[l] = lines[l].raw().direction().rotated_90_degrees();
           hyperplanes.emplace_back(normal[l], -normal[l].dot(P2));
           // Calculate intersection points of line0 and line1 with the rectangle.
           ips[l] = rectangle.intersection_points(hyperplanes[l]);
