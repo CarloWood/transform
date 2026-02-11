@@ -88,14 +88,17 @@ int main()
     plot::cs::Point<csid::centered> plot_P1{400.0, 200.0};      // Bottom-right corner of the rectangle.
     plot::cs::Point<csid::centered> plot_P2{0.0, 0.0};          // A point inside the rectangle.
 
-    // Initial direction D2.
+    // Initial direction of D2 and D3.
     CenteredDirection D2{CenteredDirection::right};             // The direction of the x-axis of the P2-coordinate-system.
+    CenteredDirection D3{CenteredDirection::right};             // The direction perpendicular to one of the edges of (minimal) rectangle through all four intersection points.
     // Radius of control circle for D2.
     double const circle_radius = circle_radius_pixels / centered_transform_pixels.x_scale();
+    double const circle_radius3 = 2.0 * circle_radius;
 
     // A draggable point on a circle around P2.
     //
     plot::cs::Point<csid::centered> plot_Q2{plot_P2 + circle_radius * D2};
+    plot::cs::Point<csid::centered> plot_Q3{plot_P2 + circle_radius3 * D3};
 
     // Create a coordinate system with origin in P2 and axes aligned with the two perpendicular lines through P2.
     //
@@ -136,6 +139,7 @@ int main()
     centered_coordinate_system.add_point(layer, P1_style, plot_P1);
     centered_coordinate_system.add_point(layer, P2_style, plot_P2);
     centered_coordinate_system.add_point(layer, Q2_style, plot_Q2);
+    centered_coordinate_system.add_point(layer, Q2_style, plot_Q3);
 
     window.register_draggable(centered_coordinate_system, &plot_P0);
     window.register_draggable(centered_coordinate_system, &plot_P1);
@@ -145,7 +149,9 @@ int main()
         Restriction{[&](CenteredPoint const& new_position) -> CenteredPoint
         {
           CenteredPoint restricted_position = restrict_to_AABB_inner_area(new_position, AABB_centered);
+          // Keep the directions D2 and D3 invariant while moving P2 (see cairowindow/tests/scale_test.cxx).
           plot_Q2.move_to(plot_P2 + circle_radius * D2);
+          plot_Q3.move_to(plot_P2 + circle_radius3 * D3);
           return restricted_position;
         }});
 
@@ -155,6 +161,13 @@ int main()
         {
           D2 = CenteredDirection{plot_P2, new_position};
           return plot_P2 + circle_radius * D2;
+        }});
+
+    window.register_draggable(centered_coordinate_system, &plot_Q3,
+        Restriction{[&](CenteredPoint const& new_position) -> CenteredPoint
+        {
+          D3 = CenteredDirection{plot_P2, new_position};
+          return plot_P2 + circle_radius3 * D3;
         }});
 
     //
@@ -194,6 +207,7 @@ int main()
 
       // Draw a circle around P2.
       auto plot_circle_centered = centered_coordinate_system.create_circle(layer, circle_style, plot_P2, circle_radius);
+      auto plot_circle3_centered = centered_coordinate_system.create_circle(layer, circle_style, plot_P2, circle_radius3);
 
       // Draw lines through P2 and Q2, and perpendicular to that.
       std::array<math::cs::Line<csid::centered>, 2> lines;
@@ -235,7 +249,7 @@ int main()
       constexpr int negative_side = 0;
       constexpr int positive_side = 1;
       auto centered_transform_p2_frame = centered_transform_pixels * p2_frame_coordinate_system.cs_transform_pixels().inverse();
-      std::array<math::cs::Point<csid::p2_frame>, 4> ips = {
+      std::array<math::cs::Point<csid::p2_frame>, 4> const ips = {
         plot_ips[x_axis][positive_side] * centered_transform_p2_frame,
         plot_ips[y_axis][positive_side] * centered_transform_p2_frame,
         plot_ips[x_axis][negative_side] * centered_transform_p2_frame,
