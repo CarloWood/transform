@@ -166,8 +166,8 @@ int main()
       // Update the bounding box for this redraw.
       AABB_centered = AABB_centered_from(plot_P0, plot_P1);
 
-      // If P2 is outside the updated bounding box (or too close to an edge), clamp it back inside.
-      // This keeps P2 inside even when P0/P1 resize/move the rectangle.
+      // If AABB_centered changed because P0 or P1 was dragged, then P2 might now be is outside
+      // this updated bounding box (or too close to an edge), clamp it back inside.
       CenteredPoint const restricted_P2 = restrict_to_AABB_inner_area(plot_P2, AABB_centered);
       if (plot_P2 != restricted_P2)
         plot_P2.move_to(restricted_P2);
