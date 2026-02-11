@@ -69,6 +69,7 @@ int main()
     draw::LineStyle const circle_style({.line_color = color::gainsboro, .line_width = 1.0});
     draw::LineStyle const line_style({.line_color = color::fuchsia, .line_width = 1.0});
     draw::PointStyle const ip_style({.color_index = color_pool.get_and_use_color(), .filled_shape = 5});
+    draw::TextStyle label_style({.position = draw::centered_below, .font_size = 18.0, .offset = 10});
 
     // Construct an centered-Axes Aligned Bounding Box from two points.
     auto AABB_centered_from = [](auto const& p0, auto const& p1) -> cs::Rectangle<csid::centered>
@@ -201,6 +202,7 @@ int main()
 
       // The plot- intersection points.
       std::array<std::vector<plot::cs::Point<csid::centered>>, 2> plot_ips;
+      //std::array<std::vector<plot::Text>, 2> plot_labels;
       {
         // Hyperblock and Hyperplane are not CS-aware. Use raw types (still in csid::centered!)
         math::Vector<2> const P0{plot_P0.raw()};
@@ -222,9 +224,25 @@ int main()
             // We know that the coordinates of these intersection points are in 'centered' coordinates.
             math::cs::Vector<csid::centered> ip_cs{ip};
             plot_ips[l].push_back(centered_coordinate_system.create_point(layer, ip_style, ip_cs.as_point()));
+            //plot_labels[l].push_back(centered_coordinate_system.create_text(layer, label_style, plot_ips[l].back(), std::to_string(l) + "." + std::to_string(plot_labels[l].size())));
           }
         }
       }
+
+      // Store intersection points counter-clockwise in an array.
+      constexpr int x_axis = 0;
+      constexpr int y_axis = 1;
+      constexpr int negative_side = 0;
+      constexpr int positive_side = 1;
+      auto centered_transform_p2_frame = centered_transform_pixels * p2_frame_coordinate_system.cs_transform_pixels().inverse();
+      std::array<math::cs::Point<csid::p2_frame>, 4> ips = {
+        plot_ips[x_axis][positive_side] * centered_transform_p2_frame,
+        plot_ips[y_axis][positive_side] * centered_transform_p2_frame,
+        plot_ips[x_axis][negative_side] * centered_transform_p2_frame,
+        plot_ips[y_axis][negative_side] * centered_transform_p2_frame,
+      };
+
+      // 
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
