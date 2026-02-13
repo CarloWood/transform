@@ -81,3 +81,12 @@ add_executable(csid_test
 target_link_libraries(csid_test
   ${AICXX_OBJECTS_LIST}
 )
+
+add_executable(qtransform_affine_transform_test
+  qtransform_affine_transform_test.cxx
+)
+
+target_link_libraries(qtransform_affine_transform_test
+  ${AICXX_OBJECTS_LIST}
+  Qt6::Widgets
+)
