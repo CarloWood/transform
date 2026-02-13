@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <thread>
 #include "debug.h"
 
@@ -24,7 +25,7 @@ namespace csid {
 using namespace math::csid;
 
 DECLARE_CSID(centered);         // Coordinate system with origin in the middle of the window, same scale as the window (1 per pixel).
-DECLARE_CSID(p2_frame);         // Coordinate system with origin at P2 and axes aligned with the two perpendicular lines.
+DECLARE_CSID(p2frame);          // Coordinate system with origin at P2 and axes aligned with the two perpendicular lines.
 } // namespace csid
 
 int main()
@@ -102,13 +103,13 @@ int main()
 
     // Create a coordinate system with origin in P2 and axes aligned with the two perpendicular lines through P2.
     //
-    // p2_frame -> centered is a rotation by angle(D2) followed by a translation by P2.
+    // p2frame -> centered is a rotation by angle(D2) followed by a translation by P2.
     // Since centered -> pixels is just a translation (origin in the center of the window), we can compose both transforms.
-    auto make_p2_frame_transform_pixels = [&]() -> Transform<csid::p2_frame, csid::pixels>
+    auto make_p2frame_transform_pixels = [&]() -> Transform<csid::p2frame, csid::pixels>
     {
       double const theta = D2.as_angle();
-      auto const p2_frame_transform_centered = Transform<csid::p2_frame, csid::centered>{}.translate(plot_P2).rotate(theta);
-      return p2_frame_transform_centered * centered_transform_pixels;
+      auto const p2frame_transform_centered = Transform<csid::p2frame, csid::centered>{}.translate(plot_P2).rotate(theta);
+      return p2frame_transform_centered * centered_transform_pixels;
     };
 
     // Current bounding box. This is updated inside the main loop; the P2 restriction captures it by reference.
@@ -198,9 +199,9 @@ int main()
       if (plot_P2 != restricted_P2)
         plot_P2.move_to(restricted_P2);
 
-      // Create the p2_frame coordinate system that follows P2 and D2.
-      CoordinateSystem<csid::p2_frame> p2_frame_coordinate_system(make_p2_frame_transform_pixels(), window_geometry);
-      p2_frame_coordinate_system.display(layer, draw::LineStyle({.line_color = color::red, .line_width = 1.0}));
+      // Create the p2frame coordinate system that follows P2 and D2.
+      CoordinateSystem<csid::p2frame> p2frame_coordinate_system(make_p2frame_transform_pixels(), window_geometry);
+      p2frame_coordinate_system.display(layer, draw::LineStyle({.line_color = color::red, .line_width = 1.0}));
 
       // Draw a rectangle between P0 and P1.
       auto plot_rectangle_centered = centered_coordinate_system.create_rectangle(layer, rectangle_style, AABB_centered);
@@ -248,15 +249,40 @@ int main()
       constexpr int y_axis = 1;
       constexpr int negative_side = 0;
       constexpr int positive_side = 1;
-      auto centered_transform_p2_frame = centered_transform_pixels * p2_frame_coordinate_system.cs_transform_pixels().inverse();
-      std::array<math::cs::Point<csid::p2_frame>, 4> const ips = {
-        plot_ips[x_axis][positive_side] * centered_transform_p2_frame,
-        plot_ips[y_axis][positive_side] * centered_transform_p2_frame,
-        plot_ips[x_axis][negative_side] * centered_transform_p2_frame,
-        plot_ips[y_axis][negative_side] * centered_transform_p2_frame,
+      auto centered_transform_p2frame = centered_transform_pixels * p2frame_coordinate_system.cs_transform_pixels().inverse();
+      std::array<math::cs::Point<csid::p2frame>, 4> const ips = {
+        plot_ips[x_axis][positive_side] * centered_transform_p2frame,
+        plot_ips[y_axis][positive_side] * centered_transform_p2frame,
+        plot_ips[x_axis][negative_side] * centered_transform_p2frame,
+        plot_ips[y_axis][negative_side] * centered_transform_p2frame,
       };
 
-      // 
+      // Select and draw one line.
+      //
+      // For each intersection point, consider the line through that point with direction perpendicular to D3.
+      // Let T be the intersection of that line with the line through P2 and Q3.
+      // We choose the line that maximizes dot(D3, vector(P2, T)).
+      math::cs::Point<csid::p2frame> const origin_p2frame{0.0, 0.0};                                    // P2 is the origin of p2frame by definition.
+      math::cs::Direction<csid::p2frame> const D3_p2frame = math::cs::Vector<csid::centered>{D3} * centered_transform_p2frame;
+      math::cs::Direction<csid::p2frame> const D3_perp_p2frame = D3.rotated_90_degrees();
+      math::cs::Line<csid::p2frame> const line_P2_Q3_p2frame{origin_p2frame, D3_p2frame};               // Line through P2 and Q3.
+
+      int best_ip = -1;
+      double best_dot = std::numeric_limits<double>::lowest();
+      for (int i = 0; i < ips.size(); ++i)
+      {
+        math::cs::Line<csid::p2frame> const candidate_line{ips[i], D3_perp_p2frame};
+        math::cs::Point<csid::p2frame> const T = candidate_line.intersection_with(line_P2_Q3_p2frame);
+
+        math::cs::Vector<csid::p2frame> const vector_to_T{T};   // Vector from origin (P2) to T.
+        double const dot = vector_to_T.dot(D3_p2frame);
+        if (dot > best_dot)
+        {
+          best_dot = dot;
+          best_ip = i;
+        }
+      }
+      auto selected_line = p2frame_coordinate_system.create_line(layer, line_style({.line_color = color::blue}), ips[best_ip], D3_perp_p2frame);
 
       // Flush all expose events related to the drawing done above.
       window.set_send_expose_events(true);
