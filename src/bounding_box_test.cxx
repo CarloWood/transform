@@ -263,8 +263,8 @@ int main()
       // Let T be the intersection of that line with the line through P2 and Q3.
       // We choose the line that maximizes dot(D3, vector(P2, T)).
       math::cs::Point<csid::p2frame> const origin_p2frame{0.0, 0.0};                                    // P2 is the origin of p2frame by definition.
-      math::cs::Direction<csid::p2frame> const D3_p2frame = math::cs::Vector<csid::centered>{D3} * centered_transform_p2frame;
-      math::cs::Direction<csid::p2frame> const D3_perp_p2frame = D3.rotated_90_degrees();
+      math::cs::Direction<csid::p2frame> const D3_p2frame = D3 * centered_transform_p2frame;
+      math::cs::Direction<csid::p2frame> const D3_perp_p2frame = D3_p2frame.rotated_90_degrees();
       math::cs::Line<csid::p2frame> const line_P2_Q3_p2frame{origin_p2frame, D3_p2frame};               // Line through P2 and Q3.
 
       int best_ip = -1;
