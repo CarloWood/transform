@@ -29,11 +29,6 @@ using namespace math::csid;
 DECLARE_CSID(centered);         // Coordinate system with origin in the middle of the window, where -1 corresponds with the bottom of the window and 1 with the top.
 } // namespace csid
 
-#if 0
-  else if (id == csid::centered.id)
-    return "cs::centered";
-#endif
-
 int main()
 {
   Debug(NAMESPACE_DEBUG::init());
@@ -81,7 +76,7 @@ int main()
     math::cs::Size<csid::pixels> const ObjectSize_pixels{object_width, object_height};
     Dout(dc::notice, "ObjectSize_pixels = " << ObjectSize_pixels);
 
-    math::cs::Size<csid::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverse();
+    math::cs::Size<csid::centered> const ObjectSize_centered = ObjectSize_pixels * centered_transform_pixels.inverted();
     Dout(dc::notice, "ObjectSize_centered = " << ObjectSize_centered);
 
     for (int step = 0; step < 24; ++step)
@@ -100,7 +95,7 @@ int main()
       auto const painter_transform_pixels = painter_transform_centered * centered_transform_pixels;
       Dout(dc::notice, "painter_transform_pixels = " << painter_transform_pixels);
 
-      math::cs::Size<csid::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverse();
+      math::cs::Size<csid::painter> const ObjectSize_painter = ObjectSize_pixels * painter_transform_pixels.inverted();
       Dout(dc::notice, "ObjectSize_painter = " << ObjectSize_painter);
 
       // Display the centered-coordinate-system.
